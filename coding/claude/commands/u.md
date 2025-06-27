@@ -1,0 +1,3 @@
+# ultrathink コマンド
+
+ultrathink $ARGUMENTS
