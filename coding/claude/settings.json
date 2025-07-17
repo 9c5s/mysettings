@@ -1,7 +1,77 @@
 {
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "30000",
+    "BASH_MAX_TIMEOUT_MS": "120000",
+    "DISABLE_ERROR_REPORTING": "1",
+    "DISABLE_TELEMETRY": "1",
+    "MCP_TOOL_TIMEOUT": "30000"
+  },
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "command": "~/.claude/scripts/hooks.py",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "~/.claude/scripts/hooks.py",
+            "type": "command"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "~/.claude/scripts/hooks.py",
+            "type": "command"
+          }
+        ],
+        "matcher": ".*"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "~/.claude/scripts/hooks.py",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "~/.claude/scripts/hooks.py",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ]
+  },
+  "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [],
-    "deny": []
-  },
-  "customInstructions": ""
+    "deny": [
+      "Bash(brew install:*)",
+      "Bash(chmod 777:*)",
+      "Bash(gh repo delete:*)",
+      "Bash(git config:*)",
+      "Bash(rm -rf:*)"
+    ]
+  }
 }
