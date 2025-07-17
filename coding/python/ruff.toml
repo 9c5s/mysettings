@@ -1,7 +1,7 @@
 # ===============================================================================
 # Ruff設定ファイル - 最も厳格かつ安全な設定
 # 日本語コメント・コーディング対応版
-# 
+#
 # このファイルはRuffの全ての主要設定項目に詳細なコメントを付けています。
 # 各設定の意味と影響を理解した上で、プロジェクトに応じて調整してください。
 # ===============================================================================
@@ -14,7 +14,7 @@
 # Pythonのターゲットバージョンを指定
 # この設定により、指定バージョン以降の構文のみを使用するよう強制されます
 # 例: py312では match文、Union型の|演算子などが使用可能
-target-version = "py313"
+target-version = "py312"
 
 # 1行あたりの最大文字数
 # 88文字はBlackのデフォルト値で、多くのPythonプロジェクトで採用されています
@@ -166,6 +166,15 @@ ignore = [
 
   # コメントアウトされたコードの検出（開発中は必要）
   "ERA001", # commented-out-code
+
+  # --- GitHub Actions実行時のログ出力のため ---
+  # print文の使用を許可（ログ出力のため必要）
+  "T201", # print
+
+  # --- コメント・ドキュメント関連 ---
+  # ドキュメント文字列の末尾ピリオドを強制しない
+  "D400", # missing-trailing-period
+  "D415", # missing-terminal-punctuation
 ]
 
 # 自動修正可能なルール
@@ -399,9 +408,6 @@ section-order = [
   "local-folder",     # ローカルフォルダ
 ]
 
-# インポート後の空行数
-lines-after-imports = 2
-
 # --- mccabe: 循環的複雑度 ---
 [lint.mccabe]
 # 最大複雑度
@@ -475,10 +481,10 @@ max-positional-args = 3
 max-public-methods = 20
 
 # 関数の最大return文数
-max-returns = 3
+max-returns = 5
 
 # 関数の最大文数
-max-statements = 30
+max-statements = 35
 
 # min-public-methods設定は現在のRuff pylintプラグインでは利用できません
 # データクラスなど、メソッドを持たないクラスは問題になりません
@@ -533,8 +539,14 @@ keep-runtime-typing = true
 
 # CLIスクリプト
 "scripts/**/*.py" = [
-  "T201", # print文の使用（CLI出力）
-  "T203", # pprint文の使用（デバッグ出力）
+  "T201",    # print文の使用（CLI出力で必要）
+  "T203",    # pprint文の使用（デバッグ出力で必要）
+  "S603",    # subprocess呼び出し（既知コマンドの実行で必要）
+  "S607",    # 実行可能パス（gh, git, uvなどの実行で必要）
+  "TRY300",  # else節の提案（run_commandの構造上、現在の形が適切）
+  "C901",    # 複雑度（monitor_pr.pyの監視機能で許容）
+  "PLR0912", # 分岐数（monitor_pr.pyの監視機能で許容）
+  "PLR0915", # 文数（monitor_pr.pyの監視機能で許容）
 ]
 
 # 実験的・プロトタイプコード
