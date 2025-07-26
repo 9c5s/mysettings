@@ -1,0 +1,33 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+trim_trailing_whitespace = true
+
+[*.{sh,bash}]
+indent_style = space
+indent_size = 2
+switch_case_indent = true
+binary_next_line = true
+space_redirects = true
+function_next_line = false
+shell_variant = bash
+
+[[shell]]
+indent_style = space
+indent_size = 2
+switch_case_indent = true
+binary_next_line = true
+space_redirects = true
+function_next_line = false
+
+[[bash]]
+indent_style = space
+indent_size = 2
+switch_case_indent = true
+binary_next_line = true
+space_redirects = true
+function_next_line = false
+shell_variant = bash

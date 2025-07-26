@@ -1,0 +1,21 @@
+---
+pre-commit:
+  piped: true
+  jobs:
+    - name: lefthook-validate
+      glob: lefthook.yml
+      run: lefthook validate
+    - name: shfmt
+      glob: '*.{sh,bash}'
+      run: shfmt -w {staged_files}
+      stage_fixed: true
+    - name: shellcheck
+      glob: '*.{sh,bash}'
+      run: shellcheck --rcfile=coding/shell/.shellcheckrc {staged_files}
+    - name: yamlfix
+      glob: '*.{yaml,yml}'
+      run: yamlfix {staged_files}
+      stage_fixed: true
+    - name: yamllint
+      glob: '*.{yaml,yml}'
+      run: yamllint {staged_files}
