@@ -1,0 +1,8 @@
+#.shellcheckrc
+enable=add-default-case
+enable=require-variable-braces
+enable=check-set-e-suppressed
+
+shell=bash
+external-sources=true
+source-path=SCRIPTDIR
