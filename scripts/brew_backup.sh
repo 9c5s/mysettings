@@ -1,36 +1,45 @@
 #!/bin/bash
-# Brewfile backup and sort script
+# Brewfile バックアップとソートスクリプト
 
 readonly BREWFILE="${HOME}/projects/mysettings/mac/Homebrew/Brewfile"
-TEMP_DIR=$(mktemp -d)
-readonly TEMP_DIR
 
-# Generate Brewfile
+# Brewfileの生成
 brew bundle dump --no-vscode --force --file "${BREWFILE}"
 
-# Sort Brewfile by sections
+# 各セクション用の配列を初期化
+declare -a taps=()
+declare -a brews=()
+declare -a casks=()
+declare -a mas_apps=()
+
+# Brewfileを読み込んでセクションごとに分類
 while IFS= read -r line; do
   if [[ ${line} =~ ^tap ]]; then
-    echo "${line}" >> "${TEMP_DIR}/tap"
+    taps+=("${line}")
   elif [[ ${line} =~ ^brew ]]; then
-    echo "${line}" >> "${TEMP_DIR}/brew"
+    brews+=("${line}")
   elif [[ ${line} =~ ^cask ]]; then
-    echo "${line}" >> "${TEMP_DIR}/cask"
+    casks+=("${line}")
   elif [[ ${line} =~ ^mas ]]; then
-    echo "${line}" >> "${TEMP_DIR}/mas"
+    mas_apps+=("${line}")
   fi
 done < "${BREWFILE}"
 
-# Write sorted content back to file
+# ソートされた内容をファイルに書き戻す
 {
-  for section in tap brew cask mas; do
-    if [[ -f "${TEMP_DIR}/${section}" ]]; then
-      sort "${TEMP_DIR}/${section}"
-    fi
-  done
+  # 各セクションをソートして出力
+  if [[ ${#taps[@]} -gt 0 ]]; then
+    printf '%s\n' "${taps[@]}" | sort
+  fi
+  if [[ ${#brews[@]} -gt 0 ]]; then
+    printf '%s\n' "${brews[@]}" | sort
+  fi
+  if [[ ${#casks[@]} -gt 0 ]]; then
+    printf '%s\n' "${casks[@]}" | sort
+  fi
+  if [[ ${#mas_apps[@]} -gt 0 ]]; then
+    printf '%s\n' "${mas_apps[@]}" | sort
+  fi
 } > "${BREWFILE}"
 
-# Clean up temporary files
-rm -rf "${TEMP_DIR}"
-
-echo "✅ Brewfile updated and sorted: ${BREWFILE}"
+echo "Brewfileが更新されました: ${BREWFILE}"
