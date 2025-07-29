@@ -2,7 +2,7 @@
 pre-commit:
   piped: true
   jobs:
-    - name: lefthook-validate
+    - name: lefthook validate
       glob: lefthook.yml
       run: lefthook validate
     - name: shfmt
