@@ -4,20 +4,20 @@ pre-commit:
   jobs:
     - name: lefthook validate
       glob: lefthook.yml
-      run: lefthook validate
+      run: uvx lefthook validate
     - name: gitleaks
-      run: gitleaks protect --staged --verbose
+      run: bunx gitleaks protect --staged --verbose
     - name: shfmt
       glob: '*.{sh,bash}'
-      run: shfmt -w {staged_files}
+      run: bunx shfmt -w {staged_files}
       stage_fixed: true
     - name: shellcheck
       glob: '*.{sh,bash}'
-      run: shellcheck --rcfile=coding/shell/.shellcheckrc {staged_files}
+      run: bunx shellcheck --rcfile=coding/shell/.shellcheckrc {staged_files}
     - name: yamlfix
       glob: '*.{yaml,yml}'
-      run: yamlfix {staged_files}
+      run: uvx yamlfix {staged_files}
       stage_fixed: true
     - name: yamllint
       glob: '*.{yaml,yml}'
-      run: yamllint {staged_files}
+      run: uvx yamllint {staged_files}
