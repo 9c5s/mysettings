@@ -1,110 +1,110 @@
 {
-  "env": {
-    "BASH_DEFAULT_TIMEOUT_MS": "30000",
-    "BASH_MAX_TIMEOUT_MS": "120000",
-    "DISABLE_ERROR_REPORTING": "1",
-    "DISABLE_TELEMETRY": "1",
-    "MCP_TOOL_TIMEOUT": "120000"
-  },
-  "includeCoAuthoredBy": false,
-  "permissions": {
-    "allow": [],
-    "deny": [
-      "Bash(brew install:*)",
-      "Bash(chmod 777:*)",
-      "Bash(gh repo delete:*)",
-      "Bash(git config:*)",
-      "Bash(rm -rf:*)"
-    ]
-  },
-  "hooks": {
-    "Notification": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/scripts/hooks.py"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/scripts/hooks.py"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/scripts/hooks.py"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/scripts/hooks.py"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/scripts/hooks.py"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/scripts/hooks.py"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/scripts/hooks.py"
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/scripts/hooks.py"
-          }
-        ]
-      }
-    ]
-  }
+	"env": {
+		"BASH_DEFAULT_TIMEOUT_MS": "30000",
+		"BASH_MAX_TIMEOUT_MS": "120000",
+		"DISABLE_ERROR_REPORTING": "1",
+		"DISABLE_TELEMETRY": "1",
+		"MCP_TOOL_TIMEOUT": "120000"
+	},
+	"includeCoAuthoredBy": false,
+	"permissions": {
+		"allow": [],
+		"deny": [
+			"Bash(brew install:*)",
+			"Bash(chmod 777:*)",
+			"Bash(gh repo delete:*)",
+			"Bash(git config:*)",
+			"Bash(rm -rf:*)"
+		]
+	},
+	"hooks": {
+		"Notification": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/hooks.py"
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/hooks.py"
+					}
+				]
+			}
+		],
+		"PreCompact": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/hooks.py"
+					}
+				]
+			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/hooks.py"
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/hooks.py"
+					}
+				]
+			}
+		],
+		"SubagentStop": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/hooks.py"
+					}
+				]
+			}
+		],
+		"UserPromptSubmit": [
+			{
+				"matcher": "",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/hooks.py"
+					}
+				]
+			}
+		],
+		"SessionStart": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/hooks.py"
+					}
+				]
+			}
+		]
+	}
 }
