@@ -13,7 +13,7 @@ pre-commit:
       stage_fixed: true
     - name: shellcheck
       glob: '*.{sh,bash}'
-      run: bunx shellcheck --rcfile=coding/shell/.shellcheckrc {staged_files}
+      run: bunx shellcheck --rcfile=coding/.shellcheckrc {staged_files}
     - name: yamlfix
       glob: '*.{yaml,yml}'
       run: uvx yamlfix {staged_files}
@@ -21,3 +21,10 @@ pre-commit:
     - name: yamllint
       glob: '*.{yaml,yml}'
       run: uvx yamllint {staged_files}
+    # - name: biome
+    #   glob: '*.{js,jsx,ts,tsx,json,jsonc}'
+    #   run: >
+    #     bunx @biomejs/biome@2.1.3 check --write --no-errors-on-unmatched
+    #     --files-ignore-unknown=true --config-path=coding/biome.jsonc
+    #     {staged_files}
+    #   stage_fixed: true
