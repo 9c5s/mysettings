@@ -1,3 +1,17 @@
 # リモートとの完全同期
 
-git fetch --all && git reset --hard origin/main && git clean -fd && git remote prune origin && git branch -d $(git branch --merged | grep -v '\*\|main\|main' | tr -d ' ') && git checkout main && git pull origin main
+## 基本的な同期処理
+
+git fetch --all
+git reset --hard origin/main
+git clean -fd
+git remote prune origin
+
+## マージ済みブランチの安全な削除
+
+git branch --merged | grep -v -E "^\*|main$" | xargs -r git branch -d 2>/dev/null || true
+
+## 最終同期
+
+git checkout main
+git pull origin main
