@@ -1,3 +1,3 @@
 # ultrathink
 
-以下について熟考して応答する $ARGUMENTS
+[熟考] $ARGUMENTS
