@@ -1,0 +1,305 @@
+{
+	"[bat]": {
+		"files.eol": "\r\n"
+	},
+	"[c]": {},
+	"[clojure]": {},
+	"[cpp]": {},
+	"[csharp]": {},
+	"[css]": {},
+	"[dockercompose]": {},
+	"[dockerfile]": {},
+	"[git-commit]": {},
+	"[github-actions-workflow]": {},
+	"[go]": {},
+	"[html]": {},
+	"[ini]": {},
+	"[java]": {},
+	"[javascript]": {},
+	"[javascriptreact]": {},
+	"[json]": {},
+	"[jsonc]": {},
+	"[latex]": {},
+	"[less]": {},
+	"[lua]": {
+		"editor.codeActionsOnSave": {},
+		"editor.defaultFormatter": "sumneko.lua"
+	},
+	"[makefile]": {},
+	"[markdown]": {},
+	"[perl]": {},
+	"[php]": {},
+	"[powershell]": {
+		"editor.defaultFormatter": "ms-vscode.powershell"
+	},
+	"[python]": {
+		"editor.codeActionsOnSave": {
+			"source.organizeImports": "explicit"
+		},
+		"editor.defaultFormatter": "charliermarsh.ruff"
+	},
+	"[reg]": {
+		"files.eol": "\r\n"
+	},
+	"[ruby]": {},
+	"[rust]": {},
+	"[sass]": {},
+	"[scss]": {},
+	"[shellcheckrc]": {},
+	"[shellscript]": {
+		"editor.codeActionsOnSave": {
+			"source.fixAll.shellcheck": "explicit"
+		},
+		"editor.defaultFormatter": "foxundermoon.shell-format"
+	},
+	"[sql]": {},
+	"[svelte]": {
+		"editor.defaultFormatter": "svelte.svelte-vscode"
+	},
+	"[swift]": {},
+	"[tex]": {},
+	"[typescript]": {},
+	"[typescriptreact]": {},
+	"[vb]": {},
+	"[vue-html]": {},
+	"[vue]": {},
+	"[xml]": {
+		"editor.defaultFormatter": "redhat.vscode-xml"
+	},
+	"[xsl]": {},
+	"[yaml]": {},
+	"accessibility.signals.terminalBell": {
+		"sound": "on"
+	},
+	"accessibility.verbosity.terminal": false,
+	"calva.prettyPrintingOptions": {
+		"enabled": true,
+		"maxLength": 50,
+		"printEngine": "pprint",
+		"width": 120
+	},
+	"claudeCodeChat.thinking.intensity": "ultrathink",
+	"claudeCodeChat.wsl.claudePath": "/usr/local/bin/claude",
+	"claudeCodeChat.wsl.distro": "Ubuntu",
+	"claudeCodeChat.wsl.enabled": false,
+	"claudeCodeChat.wsl.nodePath": "/usr/bin/node",
+	"coderabbit.agentType": "Claude Code",
+	"diffEditor.codeLens": true,
+	"diffEditor.ignoreTrimWhitespace": false,
+	"diffEditor.maxComputationTime": 0,
+	"docker.extension.dockerEngineAvailabilityPrompt": false,
+	"editor.accessibilitySupport": "off",
+	"editor.codeActionsOnSave": {
+		// "source.fixAll": "explicit"
+		"source.fixAll.eslint": "explicit",
+		"source.fixAll.shellcheck": "explicit"
+	},
+	"editor.defaultFormatter": "biomejs.biome",
+	"editor.formatOnPaste": true,
+	"editor.formatOnSave": true,
+	"editor.guides.bracketPairs": true,
+	"editor.largeFileOptimizations": false,
+	"editor.tabSize": 2,
+	"editor.tokenColorCustomizations": {
+		"[Tokyo Night]": {
+			"textMateRules": [
+				{
+					"scope": [
+						"comment",
+						"meta.var.expr storage.type",
+						"keyword.control.flow",
+						"keyword.control.return",
+						"meta.directive.vue punctuation.separator.key-value.html",
+						"meta.directive.vue entity.other.attribute-name.html",
+						"tag.decorator.js entity.name.tag.js",
+						"tag.decorator.js punctuation.definition.tag.js",
+						"storage.modifier"
+					],
+					"settings": {
+						"fontStyle": ""
+					}
+				},
+				{
+					"scope": [
+						"comment keyword.codetag.notation",
+						"comment.block.documentation keyword",
+						"comment.block.documentation storage.type.class"
+					],
+					"settings": {
+						"foreground": "#bb9af7"
+					}
+				},
+				{
+					"scope": ["comment.block.documentation entity.name.type.instance"],
+					"settings": {
+						// "fontStyle": "italic",
+						"foreground": "#73daca"
+					}
+				},
+				{
+					"scope": [
+						"comment.block.documentation entity.name.type punctuation.definition.bracket"
+					],
+					"settings": {
+						"foreground": "#bb9af7"
+					}
+				},
+				{
+					"scope": ["comment.block.documentation variable"],
+					"settings": {
+						// "fontStyle": "italic",
+						"foreground": "#e0af68"
+					}
+				}
+			]
+		}
+	},
+	"editor.unicodeHighlight.ambiguousCharacters": true,
+	"editor.unicodeHighlight.nonBasicASCII": false,
+	"explorer.confirmDelete": false,
+	"explorer.confirmDragAndDrop": false,
+	"explorer.excludeGitIgnore": true,
+	"files.associations": {
+		"*.lock": "jsonc"
+	},
+	"files.autoGuessEncoding": true,
+	"files.encoding": "utf8",
+	"files.eol": "\n",
+	"files.insertFinalNewline": true,
+	"files.trimTrailingWhitespace": true,
+	"git.autofetch": true,
+	"git.blame.editorDecoration.enabled": true,
+	"git.branchProtection": ["main", "master"],
+	"git.confirmSync": false,
+	"git.defaultCloneDirectory": "D:\\projects\\",
+	"git.diagnosticsCommitHook.enabled": true,
+	"git.enableCommitSigning": true,
+	"git.enableSmartCommit": true,
+	"git.openRepositoryInParentFolders": "never",
+	"git.terminalGitEditor": true,
+	"github.copilot.chat.localeOverride": "ja",
+	"github.copilot.enable": {
+		"*": true,
+		"enabled": true,
+		"markdown": true,
+		"plaintext": false,
+		"scminput": false
+	},
+	"github.copilot.nextEditSuggestions.enabled": true,
+	"githubPullRequests.createOnPublishBranch": "never",
+	"githubPullRequests.pullBranch": "never",
+	"gitlens.gitCommands.skipConfirmations": [
+		"fetch:command",
+		"stash-push:command",
+		"switch:command",
+		"push:command",
+		"pull:command"
+	],
+	"gitlens.launchpad.indicator.enabled": false,
+	"html.format.templating": true,
+	"indentRainbow.colors": [
+		"rgba(255,255,64,0.3)",
+		"rgba(127,255,127,0.3)",
+		"rgba(255,127,255,0.3)",
+		"rgba(79,236,236,0.3)"
+	],
+	"indentRainbow.indicatorStyle": "light",
+	"liveServer.settings.donotShowInfoMsg": true,
+	"Lua.codeLens.enable": true,
+	"Lua.completion.enable": true,
+	"Lua.hint.enable": true,
+	"prettier.bracketSameLine": true,
+	"prettier.endOfLine": "auto",
+	"prettier.printWidth": 120,
+	"python.analysis.autoImportCompletions": true,
+	"python.analysis.inlayHints.functionReturnTypes": true,
+	"python.analysis.languageServerMode": "full",
+	"python.analysis.typeCheckingMode": "strict",
+	"python.analysis.typeEvaluation.deprecateTypingAliases": true,
+	"python.analysis.typeEvaluation.strictDictionaryInference": true,
+	"python.analysis.typeEvaluation.strictListInference": true,
+	"python.analysis.typeEvaluation.strictSetInference": true,
+	"python.defaultInterpreterPath": "~\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+	"python.languageServer": "Pylance",
+	"python.terminal.activateEnvInCurrentTerminal": true,
+	"python.terminal.launchArgs": [],
+	"python.terminal.shellIntegration.enabled": true,
+	"reactSnippets.settings.prettierEnabled": true,
+	"redhat.telemetry.enabled": false,
+	"remote.SSH.enableRemoteCommand": true,
+	"remote.SSH.remotePlatform": {
+		"m4maxmbp": "macOS",
+		"mac": "macOS",
+		"omv7": "linux"
+	},
+	"remote.SSH.showLoginTerminal": false,
+	"ruff.configuration": "",
+	"ruff.configurationPreference": "filesystemFirst",
+	"ruff.format.preview": false,
+	"ruff.lint.extendSelect": ["ALL"],
+	"ruff.lint.ignore": [
+		"T201", // print() の使用を許可
+		"D400",
+		"D415", // docstringの末尾がピリオド.の強制を無効化
+		"INP001", // __init__.py の設定不要
+		"ERA001", // コメントアウトされたコードをOK
+		"RET504", // 直接returnしなくてもOK
+		"COM812"
+	],
+	"ruff.lint.select": ["ALL"],
+	"ruff.nativeServer": "on",
+	"runOnSave.commands": [
+		{
+			"command": "clasp push; clasp run main",
+			"finishStatusMessage": "${fileBasename} Pushed",
+			"match": "^D:\\\\projects\\\\imasVJDB\\\\main\\.js$",
+			"runIn": "terminal",
+			"runningStatusMessage": "Pushing ${fileBasename}"
+		}
+	],
+	"search.useGlobalIgnoreFiles": true,
+	"security.workspace.trust.untrustedFiles": "open",
+	"shellcheck.useWorkspaceRootAsCwd": true,
+	"shellformat.effectLanguages": [
+		"shellscript",
+		"dockerfile",
+		"dotenv",
+		"hosts",
+		"jvmoptions",
+		"ignore",
+		"gitignore",
+		"properties",
+		"spring-boot-properties",
+		"azcli",
+		"bats"
+	],
+	"shellformat.useEditorConfig": true,
+	"svelte.enable-ts-plugin": true,
+	"svelte.plugin.svelte.defaultScriptLanguage": "ts",
+	"terminal.external.osxExec": "iTerm.app",
+	"terminal.external.windowsExec": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+	"terminal.integrated.cursorBlinking": true,
+	"terminal.integrated.cursorStyle": "line",
+	"terminal.integrated.defaultProfile.linux": "bash",
+	"terminal.integrated.defaultProfile.osx": "zsh",
+	"terminal.integrated.enableImages": true,
+	"terminal.integrated.fontLigatures.enabled": true,
+	"terminal.integrated.fontSize": 13,
+	"terminal.integrated.gpuAcceleration": "on",
+	"terminal.integrated.macOptionIsMeta": true,
+	"terminal.integrated.mouseWheelZoom": true,
+	"terminal.integrated.rightClickBehavior": "copyPaste",
+	"terminal.integrated.shellIntegration.enabled": true,
+	"terminal.integrated.shellIntegration.environmentReporting": true,
+	"terminal.integrated.suggest.enabled": true,
+	"terminal.integrated.tabs.title": "${process} ${sequence} ${cwd}",
+	"typescript.updateImportsOnFileMove.enabled": "always",
+	"vsicons.dontShowNewVersionMessage": false,
+	"win-ca.inject": "append",
+	"workbench.colorTheme": "Tokyo Night",
+	"workbench.editorAssociations": {},
+	"workbench.iconTheme": "material-icon-theme",
+	"workbench.settings.applyToAllProfiles": ["editor.formatOnSave"],
+	"workbench.startupEditor": "none",
+	"workbench.statusBar.visible": true
+}
