@@ -56,7 +56,7 @@ for dir in "${SOURCE_DIRS[@]}"; do
 
     # シンボリックリンクを作成
     ln -s "${item_path}" "${link_path}"
-    echo "リンク作成: ${link_path} -> ${item_path}"
+    echo "リンク作成: ${item_path} -> ${link_path}"
   done
 done
 
