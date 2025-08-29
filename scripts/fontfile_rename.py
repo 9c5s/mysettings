@@ -20,7 +20,15 @@ NAME_ID_SUBFAMILY = 2
 
 
 def _get_name_from_records(records: list[Any], name_id: int) -> str:
-    """nameレコードから指定IDの文字列を取得する"""
+    """nameレコードから指定IDの文字列を取得する
+
+    Args:
+        records (list[Any]): フォントのnameテーブルから取得したnameレコードのリスト
+        name_id (int): 取得対象のname ID
+
+    Returns:
+        str: Unicodeにデコードされたnameレコードの文字列 見つからない場合は空文字列
+    """
     for record in records:
         if record.nameID == name_id and record.isUnicode():
             return record.toUnicode()
@@ -31,11 +39,10 @@ def get_font_info(font_path: pathlib.Path) -> dict[str, str] | None:
     """フォントファイルから詳細情報を取得する
 
     Args:
-        font_path: フォントファイルのパス
+        font_path (pathlib.Path): フォントファイルのパス
 
     Returns:
-        フォント情報の辞書 読み取れない場合はNone
-
+        dict[str, str] | None: フォント情報の辞書 読み取れない場合はNone
     """
     try:
         font: Any = TTFont(font_path, checkChecksums=False)
@@ -57,7 +64,15 @@ def get_font_info(font_path: pathlib.Path) -> dict[str, str] | None:
 
 
 def _process_and_copy_files(target_dir: pathlib.Path, output_dir: pathlib.Path) -> int:
-    """ファイルを走査し、フォントをコピーして処理数を返す"""
+    """ファイルを走査し、フォントをコピーして処理数を返す
+
+    Args:
+        target_dir (pathlib.Path): 走査対象のディレクトリ
+        output_dir (pathlib.Path): コピー先のディレクトリ
+
+    Returns:
+        int: コピーに成功したファイルの総数
+    """
     copied_count = 0
     all_files = sorted([p for p in target_dir.rglob("*") if p.is_file()])
 
