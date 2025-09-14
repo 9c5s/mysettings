@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 import pandas as pd
+from rich.console import Console
+from rich.logging import RichHandler
 
 
 @dataclass(frozen=True)
@@ -321,7 +323,6 @@ class CLIInterface:
         """
         return ProcessingConfig(
             encoding=args.encoding,
-            log_level="INFO",
         )
 
 
@@ -342,11 +343,18 @@ def main() -> None:
     handler = FileHandler(config)
     logger = logging.getLogger(__name__)
 
-    # ログレベルを設定
+    # RichHandlerの設定
+    console_handler = RichHandler(
+        console=Console(stderr=True),
+        markup=False,
+        rich_tracebacks=True,
+        tracebacks_show_locals=True,
+    )
+
     logging.basicConfig(
         level=getattr(logging, config.log_level),
-        format="%(levelname)s: %(message)s",
-        handlers=[logging.StreamHandler()],
+        handlers=[console_handler],
+        format="%(message)s",  # メッセージのみ レベルはRichHandlerが表示
     )
 
     # 統計情報を記録
