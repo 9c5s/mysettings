@@ -157,6 +157,9 @@ class CSVProcessor:
             pd.read_csv(str(file_path), **self.config.csv_params),  # pyright: ignore[reportUnknownMemberType]
         )
 
+        # データを昇順でソート（全カラムでソート）
+        df = df.sort_values(by=df.columns.tolist(), na_position="last")
+
         # 重複行を削除したファイルを作成
         unique_df = df.drop_duplicates(keep="first")
         unique_df.to_csv(unique_path, **self.config.output_params)
