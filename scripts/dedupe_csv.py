@@ -33,7 +33,6 @@ class ProcessingConfig:
 
     # ログ設定
     log_level: str = "INFO"
-    verbose: bool = False
 
     # CSV読み込み設定
     csv_params: dict[str, Any] = field(
@@ -74,13 +73,6 @@ class CSVProcessor:
             設定済みのロガー
         """
         logger = logging.getLogger(__name__)
-
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter("%(levelname)s: %(message)s")
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-
         logger.setLevel(getattr(logging, self.config.log_level))
         return logger
 
@@ -157,7 +149,7 @@ class CSVProcessor:
             pd.read_csv(str(file_path), **self.config.csv_params),  # pyright: ignore[reportUnknownMemberType]
         )
 
-        # データを昇順でソート（全カラムでソート）
+        # データを昇順でソート(全カラムでソート)
         df = df.sort_values(by=df.columns.tolist(), na_position="last")
 
         # 重複行を削除したファイルを作成
@@ -296,10 +288,6 @@ class CLIInterface:
         )
 
         parser.add_argument(
-            "-v", "--verbose", action="store_true", help="詳細なログを出力する"
-        )
-
-        parser.add_argument(
             "--encoding",
             default="utf-8",
             help="ファイルエンコーディング(デフォルト: utf-8)",
@@ -333,8 +321,7 @@ class CLIInterface:
         """
         return ProcessingConfig(
             encoding=args.encoding,
-            log_level="DEBUG" if args.verbose else "INFO",
-            verbose=args.verbose,
+            log_level="INFO",
         )
 
 
@@ -357,7 +344,9 @@ def main() -> None:
 
     # ログレベルを設定
     logging.basicConfig(
-        level=getattr(logging, config.log_level), format="%(levelname)s: %(message)s"
+        level=getattr(logging, config.log_level),
+        format="%(levelname)s: %(message)s",
+        handlers=[logging.StreamHandler()],
     )
 
     # 統計情報を記録
@@ -374,7 +363,7 @@ def main() -> None:
     # 最終結果を報告
     if total_processed > 0:
         logger.info(
-            "\n処理完了: %d/%d ファイルが正常に処理されました",
+            "処理完了: %d/%d ファイルが正常に処理されました",
             total_success,
             total_processed,
         )
