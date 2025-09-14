@@ -380,10 +380,14 @@ def main() -> None:
                 "%d ファイルの処理に失敗しました",
                 total_processed - total_success,
             )
+            input("\n終了するにはEnterキーを押してください")
             sys.exit(1)
     else:
         logger.warning("処理対象のファイルが見つかりませんでした")
+        input("\n終了するにはEnterキーを押してください")
         sys.exit(1)
+
+    input("\n終了するにはEnterキーを押してください")
 
 
 if __name__ == "__main__":
@@ -394,4 +398,5 @@ if __name__ == "__main__":
         sys.exit(130)
     except Exception:
         logging.getLogger(__name__).exception("予期しないエラーが発生しました")
+        input("\n終了するにはEnterキーを押してください")
         sys.exit(1)
