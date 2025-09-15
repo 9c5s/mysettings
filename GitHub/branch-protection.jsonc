@@ -1,0 +1,30 @@
+{
+	// ブランチの保護設定
+
+	// 使用方法
+	// gh api repos/{owner}/{repo}/branches/{branch}/protection --method PUT --input branch-protection.jsonc
+
+	"required_signatures": true, // コミットの署名を必須にするか
+	"enforce_admins": true, // 管理者にも保護ルールを適用するか
+	"required_linear_history": true, // リニア履歴を必須にするか
+	"allow_force_pushes": false, // フォースプッシュを許可するか
+	"allow_deletions": false, // ブランチの削除を許可するか
+	"required_conversation_resolution": false, // 会話の解決を必須にするか
+
+	// レビュー設定
+	"required_pull_request_reviews": {
+		"required_approving_review_count": 0, // 必要な承認レビュー数
+		"dismiss_stale_reviews": true, // 古いレビューを却下するか
+		"require_code_owner_reviews": false, // コードオーナーのレビューを必須にするか
+		"require_last_push_approval": true // 最後のプッシュ後の承認を必須にするか
+	},
+
+	// ステータスチェック設定
+	"required_status_checks": {
+		"strict": true, // ブランチが最新でない場合にマージを禁止するか
+		"contexts": [] // 必要なステータスチェックのリスト
+	},
+
+	// その他の制限設定
+	"restrictions": null // プッシュ可能なユーザー/チーム(nullで制限なし)
+}

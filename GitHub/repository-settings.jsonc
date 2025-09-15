@@ -1,0 +1,30 @@
+{
+	// リポジトリの一般設定
+
+	// 使用方法
+	// gh api repos/{owner}/{repo} --method PATCH --input repository-settings.jsonc
+
+	// 基本情報
+	// "name": "", // リポジトリ名
+	// "description": "", // リポジトリの説明
+	"visibility": "public", // リポジトリの可視性（public/private）
+	"private": false, // プライベートリポジトリか
+
+	// 機能設定
+	"has_issues": true, // Issuesを有効にするか
+	"has_projects": false, // Projectsを有効にするか
+	"has_wiki": false, // Wikiを有効にするか
+	"has_discussions": false, // Discussionsを有効にするか
+
+	// マージ設定
+	"allow_merge_commit": false, // マージコミットを許可するか
+	"allow_squash_merge": true, // スカッシュマージを許可するか
+	"allow_rebase_merge": false, // リベースマージを許可するか
+	"allow_auto_merge": false, // 自動マージを許可するか
+	"delete_branch_on_merge": true, // マージ後にブランチを自動削除するか
+	"squash_merge_commit_title": "COMMIT_OR_PR_TITLE", // スカッシュマージ時のコミットタイトル
+	"squash_merge_commit_message": "COMMIT_MESSAGES", // スカッシュマージ時のコミットメッセージ
+
+	// その他の設定
+	"default_branch": "main" // デフォルトブランチ名
+}
