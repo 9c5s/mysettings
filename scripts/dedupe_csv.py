@@ -1,3 +1,12 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "pandas",
+#     "rich",
+# ]
+# ///
+
+
 """CSV重複行削除ツール
 
 CSVファイルまたはテキストファイルから重複行を削除し
