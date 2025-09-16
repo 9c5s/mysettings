@@ -12,70 +12,16 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import pathlib
 import shutil
-import subprocess
 import sys
 from typing import Any
 
-# --- 依存ライブラリ設定 ---
-# スクリプトの実行に必要なサードパーティ製ライブラリを定義
-# キー: import時に使用する名前
-# 値: pipでインストールする際のパッケージ名
-REQUIRED_PACKAGES = {
-    "fontTools": "fonttools",
-    "pathvalidate": "pathvalidate",
-}
-# -------------------------
-
-
-def _ensure_packages_installed() -> bool:
-    """REQUIRED_PACKAGESで定義されたライブラリを確認し、未インストールのものをインストールする
-
-    Returns:
-        bool: ライブラリが1つ以上インストールされた場合はTrue、そうでなければFalse
-    """
-    packages_installed = False
-    for import_name, package_name in REQUIRED_PACKAGES.items():
-        if importlib.util.find_spec(import_name) is None:
-            print(f"ライブラリ '{package_name}' をインストール中...", file=sys.stderr)
-            try:
-                subprocess.run(
-                    [sys.executable, "-m", "pip", "install", "-qqq", package_name],
-                    check=True,
-                    capture_output=True,
-                    stdin=subprocess.DEVNULL,
-                )
-                print(f"インストール完了: {package_name}", file=sys.stderr)
-                packages_installed = True
-            except subprocess.CalledProcessError as e:
-                error_message = (
-                    f"エラー: '{package_name}' のインストールに失敗しました\n"
-                    f"{e.stderr.decode()}"
-                )
-                print(error_message, file=sys.stderr)
-                sys.exit(1)
-    return packages_installed
-
-
-# 実行に必要なライブラリをチェック・インストール
-if _ensure_packages_installed():
-    print(
-        "必要なライブラリをインストールしました。スクリプトを再実行します...",
-        file=sys.stderr,
-    )
-    result = subprocess.run([sys.executable, *sys.argv], check=False)
-    sys.exit(result.returncode)
-
-
-try:
-    from fontTools.ttLib import TTFont, TTLibError  # type: ignore[import]
-    from pathvalidate import sanitize_filename
-except ImportError as e:
-    print(f"エラー: 必要なライブラリのインポートに失敗: {e}", file=sys.stderr)
-    sys.exit(1)
-
+from fontTools.ttLib import (  # pyright: ignore[reportMissingTypeStubs]
+    TTFont,
+    TTLibError,
+)
+from pathvalidate import sanitize_filename
 
 # OpenType仕様に基づくName ID
 # https://learn.microsoft.com/en-us/typography/opentype/spec/name#name-ids
