@@ -14,7 +14,7 @@
 # Pythonのターゲットバージョンを指定
 # この設定により、指定バージョン以降の構文のみを使用するよう強制されます
 # 例: py312では match文、Union型の|演算子などが使用可能
-target-version = "py312"
+target-version = "py313"
 
 # 1行あたりの最大文字数
 # 88文字はBlackのデフォルト値で、多くのPythonプロジェクトで採用されています
@@ -152,6 +152,10 @@ ignore = [
 
   # 暗黙的な文字列結合（フォーマッタと競合）
   "ISC001", # single-line-implicit-string-concatenation
+
+  # --- プロジェクト構造関連 ---
+  # パッケージへの__init__.py必要性（スクリプト単体では不要）
+  "INP001", # implicit-namespace-package
 
   # --- 実用性の観点から除外 ---
 
@@ -500,7 +504,7 @@ keep-runtime-typing = true
 # ===============================================================================
 [lint.per-file-ignores]
 # テストファイルは特定のルールを緩和
-"tests/**/*.py" = [
+"test/**/*.py" = [
   "S101",    # assert文の使用（テストでは必須）
   "S105",    # ハードコードされたパスワード（テストデータ）
   "S106",    # ハードコードされたパスワード（テストデータ）
@@ -522,7 +526,6 @@ keep-runtime-typing = true
 
 # 設定ファイル
 "conf.py" = [
-  "INP001", # __init__.pyが不要
   "D100",   # モジュールレベルdocstring不要
 ]
 
@@ -532,21 +535,14 @@ keep-runtime-typing = true
 ]
 
 "docs/conf.py" = [
-  "INP001", # __init__.py不要
   "D100",   # モジュールレベルdocstring不要
   "A001",   # 組み込み名の上書き（Sphinx設定で一般的）
 ]
 
 # CLIスクリプト
 "scripts/**/*.py" = [
-  "T201",    # print文の使用（CLI出力で必要）
-  "T203",    # pprint文の使用（デバッグ出力で必要）
-  "S603",    # subprocess呼び出し（既知コマンドの実行で必要）
+  "S603",    # shell=Trueでのsubprocess呼び出し（S604と競合）
   "S607",    # 実行可能パス（gh, git, uvなどの実行で必要）
-  "TRY300",  # else節の提案（run_commandの構造上、現在の形が適切）
-  "C901",    # 複雑度（monitor_pr.pyの監視機能で許容）
-  "PLR0912", # 分岐数（monitor_pr.pyの監視機能で許容）
-  "PLR0915", # 文数（monitor_pr.pyの監視機能で許容）
 ]
 
 # 実験的・プロトタイプコード
