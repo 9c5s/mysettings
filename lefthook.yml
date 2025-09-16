@@ -25,6 +25,7 @@ pre-commit:
         --files-ignore-unknown=true {staged_files}
       stage_fixed: true
     - name: python
+      glob: '*.{py,pyi}'
       run: >
         uvx ruff format {staged_files}
         && uvx ruff check --fix {staged_files}
