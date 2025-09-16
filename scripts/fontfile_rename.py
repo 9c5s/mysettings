@@ -1,3 +1,12 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "fonttools",
+#     "pathvalidate",
+# ]
+# ///
+
+
 """指定ディレクトリ以下のフォントを収集し、整形して別ディレクトリにコピーするスクリプト"""
 
 from __future__ import annotations
