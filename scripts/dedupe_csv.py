@@ -4,8 +4,6 @@ CSVファイルまたはテキストファイルから重複行を削除し
 重複削除版と重複抽出版の2つのファイルを生成する
 """
 
-# ruff: noqa: INP001
-
 from __future__ import annotations
 
 import argparse

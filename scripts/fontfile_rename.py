@@ -1,7 +1,5 @@
 """指定ディレクトリ以下のフォントを収集し、整形して別ディレクトリにコピーするスクリプト"""
 
-# ruff: noqa: INP001
-
 from __future__ import annotations
 
 import argparse
