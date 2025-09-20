@@ -16,7 +16,7 @@
 		"required_approving_review_count": 0, // 必要な承認レビュー数
 		"dismiss_stale_reviews": true, // 古いレビューを却下するか
 		"require_code_owner_reviews": false, // コードオーナーのレビューを必須にするか
-		"require_last_push_approval": true // 最後のプッシュ後の承認を必須にするか
+		"require_last_push_approval": false // 最後のプッシュ後の承認を必須にするか
 	},
 
 	// ステータスチェック設定
