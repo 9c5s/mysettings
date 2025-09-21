@@ -2,7 +2,7 @@
 	// ブランチの保護設定
 
 	// 使用方法
-	// gh api repos/{owner}/{repo}/branches/{branch}/protection --method PUT --input branch-protection.jsonc
+	// gh api repos/$owner/$repo/branches/$branch/protection --method PUT --input branch-protection.jsonc
 
 	"required_signatures": true, // コミットの署名を必須にするか
 	"enforce_admins": true, // 管理者にも保護ルールを適用するか
