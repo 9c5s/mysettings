@@ -2,7 +2,7 @@
 	// リポジトリの一般設定
 
 	// 使用方法
-	// gh api repos/{owner}/{repo} --method PATCH --input repository-settings.jsonc
+	// gh api repos/$owner/$repo --method PATCH --input repository-settings.jsonc
 
 	// 基本情報
 	// "name": "", // リポジトリ名
