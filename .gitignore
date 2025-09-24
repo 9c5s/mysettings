@@ -2,3 +2,6 @@
 .claude/
 .serena/
 __pycache__/
+node_modules/
+.lsp/
+.clj-condo/
