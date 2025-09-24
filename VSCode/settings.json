@@ -164,6 +164,7 @@
 	"files.eol": "\n",
 	"files.insertFinalNewline": true,
 	"files.trimTrailingWhitespace": true,
+	"geminicodeassist.project": "stunning-layout-t9jrc",
 	"git.autofetch": true,
 	"git.blame.editorDecoration.enabled": true,
 	"git.branchProtection": ["main", "master"],
