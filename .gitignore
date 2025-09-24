@@ -4,4 +4,4 @@
 __pycache__/
 node_modules/
 .lsp/
-.clj-condo/
+.clj-kondo/
