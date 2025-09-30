@@ -7,12 +7,26 @@
 	"[cpp]": {},
 	"[csharp]": {},
 	"[css]": {},
-	"[dockercompose]": {},
+	"[dockercompose]": {
+		"editor.autoIndent": "advanced",
+		"editor.defaultFormatter": "redhat.vscode-yaml",
+		"editor.insertSpaces": true,
+		"editor.quickSuggestions": {
+			"comments": false,
+			"other": true,
+			"strings": true
+		},
+		"editor.tabSize": 2
+	},
 	"[dockerfile]": {},
+	"[editorconfig]": {},
 	"[git-commit]": {},
-	"[github-actions-workflow]": {},
+	"[github-actions-workflow]": {
+		"editor.defaultFormatter": "redhat.vscode-yaml"
+	},
 	"[go]": {},
 	"[html]": {},
+	"[ignore]": {},
 	"[ini]": {},
 	"[java]": {},
 	"[javascript]": {},
@@ -30,8 +44,10 @@
 	"[perl]": {},
 	"[php]": {},
 	"[powershell]": {
-		"editor.defaultFormatter": "ms-vscode.powershell"
+		"editor.defaultFormatter": "ms-vscode.powershell",
+		"files.encoding": "utf8bom"
 	},
+	"[properties]": {},
 	"[python]": {
 		"editor.codeActionsOnSave": {
 			"source.organizeImports": "explicit"
@@ -209,11 +225,16 @@
 	"prettier.bracketSameLine": true,
 	"prettier.endOfLine": "auto",
 	"prettier.printWidth": 120,
+	"python.analysis.autoFormatStrings": true,
 	"python.analysis.autoImportCompletions": true,
+	"python.analysis.inlayHints.callArgumentNames": "all",
 	"python.analysis.inlayHints.functionReturnTypes": true,
+	"python.analysis.inlayHints.pytestParameters": true,
+	"python.analysis.inlayHints.variableTypes": true,
 	"python.analysis.languageServerMode": "full",
 	"python.analysis.typeCheckingMode": "strict",
 	"python.analysis.typeEvaluation.deprecateTypingAliases": true,
+	"python.analysis.typeEvaluation.enableReachabilityAnalysis": true,
 	"python.analysis.typeEvaluation.strictDictionaryInference": true,
 	"python.analysis.typeEvaluation.strictListInference": true,
 	"python.analysis.typeEvaluation.strictSetInference": true,
@@ -222,6 +243,7 @@
 	"python.terminal.activateEnvInCurrentTerminal": true,
 	"python.terminal.launchArgs": [],
 	"python.terminal.shellIntegration.enabled": true,
+	"python.testing.unittestEnabled": true,
 	"reactSnippets.settings.prettierEnabled": true,
 	"redhat.telemetry.enabled": false,
 	"remote.SSH.enableRemoteCommand": true,
