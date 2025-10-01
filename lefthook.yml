@@ -10,14 +10,14 @@ pre-commit:
     - name: shell
       glob: '*.{sh,bash}'
       run: >
-        bunx shfmt -w {staged_files}
-        && bunx shellcheck {staged_files}
+        bunx shfmt -w {staged_files} &&
+        bunx shellcheck {staged_files}
       stage_fixed: true
     - name: yaml
       glob: '*.{yaml,yml}'
       run: >
-        uvx yamlfix {staged_files}
-        && uvx yamllint {staged_files}
+        uvx yamlfix {staged_files} &&
+        uvx yamllint {staged_files}
       stage_fixed: true
     - name: biome
       run: >
@@ -27,7 +27,7 @@ pre-commit:
     - name: python
       glob: '*.{py,pyi}'
       run: >
-        uvx ruff format {staged_files}
-        && uvx ruff check --fix {staged_files}
-        && pyright {staged_files}
+        uvx ruff format {staged_files} &&
+        uvx ruff check --fix {staged_files} &&
+        uvx pyright {staged_files}
       stage_fixed: true
