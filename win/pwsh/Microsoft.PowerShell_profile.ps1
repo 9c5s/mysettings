@@ -8,3 +8,6 @@ oh-my-posh init pwsh --config 'https://raw.githubusercontent.com/JanDeDobbeleer/
 # uv/uvx自動補完
 (& uv generate-shell-completion powershell) | Out-String | Invoke-Expression
 (& uvx --generate-shell-completion powershell) | Out-String | Invoke-Expression
+
+# PowerToys CommandNotFound module
+Import-Module -Name Microsoft.WinGet.CommandNotFound
