@@ -13,7 +13,6 @@ brew "chrome-devtools-mcp"
 brew "cloudflare-wrangler"
 brew "cloudflared"
 brew "cmake"
-brew "codex"
 brew "curl"
 brew "docker-compose"
 brew "duti"
@@ -84,6 +83,7 @@ brew "zsh"
 cask "1password-cli"
 cask "1password"
 cask "angry-ip-scanner"
+cask "antigravity"
 cask "anydesk"
 cask "audacity"
 cask "betterdisplay"
@@ -104,7 +104,6 @@ cask "dropbox"
 cask "electron"
 cask "ff-works"
 cask "firefox"
-cask "flutter"
 cask "font-hack-nerd-font"
 cask "font-hackgen-nerd"
 cask "font-hackgen"
@@ -137,6 +136,7 @@ cask "postman"
 cask "powershell"
 cask "prisma-studio"
 cask "qbittorrent"
+cask "qlvideo"
 cask "rar"
 cask "resolume-arena"
 cask "slack"
@@ -154,13 +154,13 @@ cask "touchosc-bridge"
 cask "touchosc"
 cask "tourbox-console"
 cask "unity-hub"
-cask "unity"
 cask "visual-studio-code"
 cask "vlc"
 cask "windows-app"
 cask "wine-stable"
 cask "wireshark-app"
 cask "zoom"
+mas "Adblock Plus", id: 1432731683
 mas "AdBlock", id: 1402042596
 mas "AmorphousDiskMark", id: 1168254295
 mas "AmorphousMemoryMark", id: 1495719766
@@ -169,4 +169,5 @@ mas "Blackmagic Disk Speed Test", id: 425264550
 mas "Disk Space Analyzer", id: 446243721
 mas "LINE", id: 539883307
 mas "RunCat", id: 1429033973
+mas "uBlock Origin Lite", id: 6745342698
 mas "Xcode", id: 497799835
