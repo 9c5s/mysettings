@@ -2,6 +2,7 @@
 # requires-python = ">=3.13"
 # dependencies = [
 #     "pyperclip",
+#     "yt-dlp",
 # ]
 # ///
 """yt-dlp用クリップボード監視ツール
@@ -12,7 +13,6 @@
 from __future__ import annotations
 
 import logging
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -20,12 +20,13 @@ from typing import Final, NoReturn
 from urllib.parse import urlparse
 
 import pyperclip
+import yt_dlp
+from yt_dlp.utils import DownloadError
 
 # 設定
 POLLING_INTERVAL: Final[float] = 0.1
 DOWNLOAD_DIR: Final[Path] = Path.home() / "Downloads" / "yt_dlp"
-YT_DLP_COMMAND_TEMPLATE: Final[list[str]] = [
-    "yt-dlp",
+YT_DLP_OPTIONS: Final[list[str]] = [
     "-S",
     "codec:avc:aac,res:1080,fps:60,hdr:sdr",
     "-f",
@@ -34,6 +35,8 @@ YT_DLP_COMMAND_TEMPLATE: Final[list[str]] = [
     "%(title)s_%(height)s_%(fps)s_%(vcodec.:4)s_(%(id)s).%(ext)s",
     "--ppa",
     "Merger+ffmpeg_o1:-map_metadata -1",
+    "--remote-components",
+    "ejs:github",
 ]
 
 
@@ -68,7 +71,7 @@ def is_valid_url(text: str) -> bool:
 
 
 def download_video(url: str, logger: logging.Logger) -> None:
-    """指定されたURLに対してyt-dlpコマンドを実行する
+    """指定されたURLに対してyt-dlpでダウンロードを実行する
 
     Args:
         url: ダウンロード対象のURL
@@ -81,19 +84,15 @@ def download_video(url: str, logger: logging.Logger) -> None:
         logger.exception("ダウンロードディレクトリの作成に失敗しました")
         return
 
-    command = [*YT_DLP_COMMAND_TEMPLATE, "-P", str(DOWNLOAD_DIR), url]
+    opts = yt_dlp.parse_options([*YT_DLP_OPTIONS, "-P", str(DOWNLOAD_DIR)]).ydl_opts
+
     try:
         logger.info("ダウンロードを開始します: %s", url)
-        # 完了を待機するために subprocess.run を使用
-        subprocess.run(command, check=True)
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download([url])
         logger.info("ダウンロードが正常に完了しました")
-    except subprocess.CalledProcessError as e:
-        logger.exception("ダウンロードが終了コード %s で失敗しました", e.returncode)
-    except FileNotFoundError:
-        logger.exception(
-            "yt-dlpの実行可能ファイルが見つかりません "
-            "PATHに含まれているか確認してください"
-        )
+    except DownloadError:
+        logger.exception("ダウンロードに失敗しました")
 
 
 def monitor_clipboard() -> NoReturn:
