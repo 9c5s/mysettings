@@ -67,7 +67,7 @@ YT_DLP_OPTIONS: Final[list[str]] = [
     "--ppa",
     "Merger+ffmpeg_o1:-map_metadata -1",
     "--ppa",
-    "AudioNormalize:-t -14.0 -c:a aac -b:a 128k -mn -cn -sn -pr",
+    "AudioNormalize:-t -14.0 -c:a aac -b:a 128k -ar 48000 -mn -cn -sn -pr",
     "--remote-components",
     "ejs:github",
     "--cookies-from-browser",
