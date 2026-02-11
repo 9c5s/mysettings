@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 import time
@@ -26,18 +27,122 @@ from yt_dlp.utils import DownloadError
 # 設定
 POLLING_INTERVAL: Final[float] = 0.1
 DOWNLOAD_DIR: Final[Path] = Path.home() / "Downloads" / "yt_dlp"
+DOWNLOAD_ARCHIVE_FILE: Final[Path] = (
+    Path.home() / "projects" / "ytdlp-archive" / "downloaded.txt"
+)
 YT_DLP_OPTIONS: Final[list[str]] = [
+    "--ignore-config",
     "-S",
     "codec:avc:aac,res:1080,fps:60,hdr:sdr",
     "-f",
     "bv+ba",
+    "-P",
+    str(DOWNLOAD_DIR),
     "-o",
-    "%(title)s_%(height)s_%(fps)s_%(vcodec.:4)s_(%(id)s).%(ext)s",
+    "%(title)s_%(id)s",
     "--ppa",
     "Merger+ffmpeg_o1:-map_metadata -1",
     "--remote-components",
     "ejs:github",
+    "--cookies-from-browser",
+    "firefox",
+    "--download-archive",
+    str(DOWNLOAD_ARCHIVE_FILE),
 ]
+
+
+def _parse_option_list(options: list[str]) -> dict[str, str | None]:
+    """オプションリストをキーと値のペアの辞書に変換する
+
+    Args:
+        options: yt-dlpオプションのリスト
+
+    Returns:
+        オプション名をキー、値がある場合はその値、
+        フラグ型オプションの場合はNoneを値とする辞書
+    """
+    result: dict[str, str | None] = {}
+    i = 0
+    while i < len(options):
+        opt = options[i]
+        if opt.startswith("-"):
+            if i + 1 < len(options) and not options[i + 1].startswith("-"):
+                result[opt] = options[i + 1]
+                i += 2
+            else:
+                result[opt] = None
+                i += 1
+        else:
+            i += 1
+    return result
+
+
+def _dict_to_option_list(options: dict[str, str | None]) -> list[str]:
+    """オプション辞書をリスト形式に変換する
+
+    Args:
+        options: オプション名と値のペアの辞書
+
+    Returns:
+        yt-dlpに渡せるフラットなオプションリスト
+    """
+    result: list[str] = []
+    for key, value in options.items():
+        result.append(key)
+        if value is not None:
+            result.append(value)
+    return result
+
+
+def merge_yt_dlp_options(overrides: list[str]) -> list[str]:
+    """デフォルトオプションにCLI引数をマージする
+
+    値付きのオプションは上書きし、新規オプションは追加する
+    値なしで渡されたオプションがデフォルトに存在する場合は削除する
+
+    Args:
+        overrides: CLI引数から取得したyt-dlpオプションのリスト
+
+    Returns:
+        マージ済みのオプションリスト
+    """
+    base = _parse_option_list(YT_DLP_OPTIONS)
+    override_dict = _parse_option_list(overrides)
+
+    for key, value in override_dict.items():
+        if value is None and key in base:
+            # デフォルトに存在するオプションが値なしで渡された場合は削除
+            del base[key]
+        else:
+            base[key] = value
+
+    return _dict_to_option_list(base)
+
+
+def parse_args() -> list[str]:
+    """コマンドライン引数を解析し、yt-dlpオプションを返す
+
+    Returns:
+        マージ済みのyt-dlpオプションリスト
+    """
+    parser = argparse.ArgumentParser(
+        description="クリップボードを監視し、URLを検知するとyt-dlpでダウンロードする",
+    )
+    parser.add_argument(
+        "yt_dlp_args",
+        nargs=argparse.REMAINDER,
+        help="yt-dlpオプション (-- の後に指定)",
+    )
+    args = parser.parse_args()
+
+    # REMAINDER は先頭の '--' を含む場合があるため除去する
+    overrides = args.yt_dlp_args
+    if overrides and overrides[0] == "--":
+        overrides = overrides[1:]
+
+    if not overrides:
+        return list(YT_DLP_OPTIONS)
+    return merge_yt_dlp_options(overrides)
 
 
 def setup_logger() -> logging.Logger:
@@ -47,7 +152,7 @@ def setup_logger() -> logging.Logger:
     handler = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter(
         "%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%y/%m/%d %H:%M:%S",
+        datefmt="%H:%M:%S",
     )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
@@ -70,36 +175,46 @@ def is_valid_url(text: str) -> bool:
         return False
 
 
-def download_video(url: str, logger: logging.Logger) -> None:
+def download_video(url: str, logger: logging.Logger, yt_dlp_options: list[str]) -> None:
     """指定されたURLに対してyt-dlpでダウンロードを実行する
 
     Args:
         url: ダウンロード対象のURL
         logger: 状態を出力するためのロガーインスタンス
+        yt_dlp_options: yt-dlpに渡すオプションリスト
     """
-    # ダウンロードディレクトリが存在しない場合は作成する
+    # マージ済みオプションからダウンロードディレクトリを取得して作成する
+    parsed = _parse_option_list(yt_dlp_options)
+    download_dir = Path(parsed.get("-P") or str(DOWNLOAD_DIR))
     try:
-        DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        download_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
         logger.exception("ダウンロードディレクトリの作成に失敗しました")
         return
 
-    opts = yt_dlp.parse_options([*YT_DLP_OPTIONS, "-P", str(DOWNLOAD_DIR)]).ydl_opts
+    opts = yt_dlp.parse_options(yt_dlp_options).ydl_opts
 
     try:
         logger.info("ダウンロードを開始します: %s", url)
+        logger.debug("yt-dlp options: %s", yt_dlp_options)
         with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
-        logger.info("ダウンロードが正常に完了しました")
+            ret = ydl.download([url])
+        if ret != 0:
+            logger.error("ダウンロードがエラーで終了しました (code=%d)", ret)
+        else:
+            logger.info("ダウンロードが正常に完了しました")
     except DownloadError:
         logger.exception("ダウンロードに失敗しました")
 
 
-def monitor_clipboard() -> NoReturn:
+def monitor_clipboard(yt_dlp_options: list[str]) -> NoReturn:
     """新しいURLがないかクリップボードを継続的に監視する
 
     定義された間隔でクリップボードの内容を確認する無限ループを実行する
     変更された内容が有効なURLである場合、ダウンロードプロセスをトリガーする
+
+    Args:
+        yt_dlp_options: yt-dlpに渡すオプションリスト
     """
     logger = setup_logger()
     logger.info("クリップボード監視を開始します")
@@ -124,7 +239,7 @@ def monitor_clipboard() -> NoReturn:
                 last_text = current_text
                 if is_valid_url(current_text):
                     logger.info("URLを検知しました: %s", current_text)
-                    download_video(current_text, logger)
+                    download_video(current_text, logger, yt_dlp_options)
                 else:
                     logger.debug(
                         "クリップボードの変更を検知しましたが、URLではありません"
@@ -138,4 +253,4 @@ def monitor_clipboard() -> NoReturn:
 
 
 if __name__ == "__main__":
-    monitor_clipboard()
+    monitor_clipboard(parse_args())
