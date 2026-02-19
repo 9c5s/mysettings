@@ -1,7 +1,11 @@
-.DS_Store
-.claude/
-.serena/
 __pycache__/
-node_modules/
-.lsp/
+.claude/
 .clj-kondo/
+.DS_Store
+.lsp/
+.serena/
+.tmp/
+.venv/
+desktop.ini
+node_modules/
+Thumbs.db
