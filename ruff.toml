@@ -1,215 +1,174 @@
-# ===============================================================================
-# Ruff設定ファイル - 最も厳格かつ安全な設定
-# 日本語コメント・コーディング対応版
-#
-# このファイルはRuffの全ての主要設定項目に詳細なコメントを付けています。
-# 各設定の意味と影響を理解した上で、プロジェクトに応じて調整してください。
-# ===============================================================================
+# =============================================================================
+# Ruff設定ファイル
+# 最も厳格かつ安全な設定 - 日本語コーディング対応版
+# =============================================================================
 
 
-# ===============================================================================
+# =============================================================================
 # 基本設定
-# ===============================================================================
+# =============================================================================
 
-# Pythonのターゲットバージョンを指定
-# この設定により、指定バージョン以降の構文のみを使用するよう強制されます
-# 例: py312では match文、Union型の|演算子などが使用可能
+# Pythonのターゲットバージョン
+# py313ではmatch文、Union型の|演算子、組み込み型の汎用化等が利用可能である
 target-version = "py313"
 
-# 1行あたりの最大文字数
-# 88文字はBlackのデフォルト値で、多くのPythonプロジェクトで採用されています
-# 長すぎる行は可読性を損なうため、この制限を設けています
+# 1行あたりの最大文字数(Blackのデフォルトと同値)
 line-length = 88
 
-# インデントの幅（スペース数）
-# Python標準のPEP 8では4スペースが推奨されています
-# タブではなくスペースを使用することで、環境依存を避けます
+# インデント幅(PEP 8準拠の4スペース)
 indent-width = 4
 
-# プレビュー機能を有効化
-# まだ安定版でない新しいルールや機能を試すことができます
-# 最新のベストプラクティスを取り入れたい場合は true に設定
+# プレビュー機能の有効化
+# 最新のルールや機能を先行的に取り入れる
 preview = true
 
-# ===============================================================================
+# =============================================================================
 # ファイル選択設定
-# ===============================================================================
+# =============================================================================
 
-# チェック対象に含めるファイルパターン
-# .py: 通常のPythonファイル
-# .pyi: 型スタブファイル（型情報のみを含むファイル）
-# **/pyproject.toml: プロジェクト設定ファイル（Ruffの設定も含む）
+# チェック対象ファイルパターン
 include = ["*.py", "*.pyi", "**/pyproject.toml"]
 
-# チェック対象から除外するディレクトリ・ファイル
-# これらは一般的にチェック不要なディレクトリです
+# チェック対象から除外するディレクトリ
 exclude = [
-  ".bzr",           # Bazaarバージョン管理
-  ".direnv",        # direnv設定
-  ".eggs",          # Python eggファイル
-  ".git",           # Gitバージョン管理
-  ".git-rewrite",   # Git履歴の書き換え時の一時ファイル
-  ".hg",            # Mercurialバージョン管理
-  ".mypy_cache",    # mypy型チェッカーのキャッシュ
-  ".nox",           # noxテスト自動化ツール
-  ".pants.d",       # Pantsビルドツール
-  ".pytype",        # pytype型チェッカー
-  ".ruff_cache",    # Ruff自体のキャッシュ
-  ".svn",           # Subversionバージョン管理
-  ".tox",           # toxテスト自動化ツール
-  ".venv",          # Python仮想環境
-  "__pypackages__", # PEP 582のローカルパッケージディレクトリ
-  "_build",         # Sphinxドキュメントのビルド出力
-  "buck-out",       # Buckビルドツールの出力
-  "build",          # 一般的なビルド出力ディレクトリ
-  "dist",           # パッケージ配布ファイル
-  "node_modules",   # Node.jsの依存関係（フロントエンド連携時）
-  "venv",           # Python仮想環境（.venvの別名）
-  ".vscode",        # VSCode設定
-  ".idea",          # IntelliJ IDEA設定
+  ".bzr",
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".git-rewrite",
+  ".hg",
+  ".mypy_cache",
+  ".nox",
+  ".pants.d",
+  ".pytype",
+  ".ruff_cache",
+  ".svn",
+  ".tox",
+  ".venv",
+  "__pypackages__",
+  "_build",
+  "buck-out",
+  "build",
+  "dist",
+  "node_modules",
+  "venv",
+  ".vscode",
+  ".idea",
 ]
 
-# .gitignoreファイルの内容を尊重するかどうか
-# trueにすると、Gitで無視されているファイルはRuffでも無視されます
-# これにより、一時ファイルや生成されたファイルをチェックから除外できます
+# .gitignoreの内容を尊重する
 respect-gitignore = true
 
-# ===============================================================================
+# =============================================================================
 # 出力設定
-# ===============================================================================
+# =============================================================================
 
-# 修正内容を表示するかどうか
-# trueにすると、どのような修正が可能かを確認できます
-# 自動修正前に変更内容を確認したい場合に有用
+# 修正内容の表示を有効にする
 show-fixes = true
 
-# 出力フォーマット
-# text: 人間が読みやすい標準形式
-# json: プログラムで処理しやすいJSON形式
-# junit: CI/CDツールとの統合用
-# github: GitHub Actionsでの表示に最適化
-# gitlab: GitLab CIでの表示に最適化
-# full: 詳細な診断情報を含む完全な出力形式
+# 詳細な診断情報を含む完全な出力形式を使用する
 output-format = "full"
 
 
-# ===============================================================================
+# =============================================================================
 # フォーマット設定
-# ===============================================================================
+# =============================================================================
 [format]
-# 文字列のクォートスタイル
-# double: ダブルクォート（"）を使用
-# single: シングルクォート（'）を使用
-# preserve: 既存のスタイルを保持
+# ダブルクォートを使用する
 quote-style = "double"
 
-# インデントスタイル
-# space: スペースを使用（推奨）
-# tab: タブを使用
+# スペースインデントを使用する
 indent-style = "space"
 
-# マジックトレーリングカンマをスキップするか
-# false: カンマがある場合は改行を維持（Blackと同じ動作）
-# true: カンマを無視してフォーマット
+# マジックトレーリングカンマがある場合は改行を維持する(Black互換)
 skip-magic-trailing-comma = false
 
-# 改行コード
-# lf: Unix/Linux形式（\n）
-# crlf: Windows形式（\r\n）
-# native: OS依存
-# auto: 既存ファイルの形式を検出して使用
+# 改行コードはLF統一とする
 line-ending = "lf"
 
-# docstring内のコードブロックもフォーマットするか
-# コード例の一貫性を保つために有効化
+# docstring内のコードブロックもフォーマットする
 docstring-code-format = true
 
-# docstring内のコードの行長制限
-# 通常のコードより短めに設定して読みやすさを確保
+# docstring内コードの行長制限(通常より短めに設定)
 docstring-code-line-length = 72
 
-# ===============================================================================
+# =============================================================================
 # リント設定
-# ===============================================================================
+# =============================================================================
 [lint]
-# 有効にするルールカテゴリ
-# "ALL"は全ての利用可能なルールを有効化します
-# これにより、最も厳格なコード品質チェックが行われます
+# 全ルールを有効化し、不要なものだけをignoreで除外する方式
 select = ["ALL"]
 
 # 無視するルール
-# 競合するルールや、プロジェクトに適さないルールを除外します
 ignore = [
-  # --- フォーマット関連の競合 ---
-  # クラス定義前の空行に関するルール（D211と競合）
-  "D203", # one-blank-line-before-class
-
-  # 複数行のdocstringのサマリー位置（D212と競合）
-  "D213", # multi-line-summary-second-line
-
-  # 末尾カンマの欠落（フォーマッタが自動処理するため不要）
+  # --- フォーマッタとの競合回避 ---
+  # ruff formatが処理する領域と重複するルール群
+  # 公式ドキュメントで「フォーマッタ使用時はignore推奨」と明記されている
+  "D203",   # one-blank-line-before-class (D211と競合)
+  "D213",   # multi-line-summary-second-line (D212と競合)
   "COM812", # trailing-comma-missing
-
-  # 暗黙的な文字列結合（フォーマッタと競合）
   "ISC001", # single-line-implicit-string-concatenation
+  "E111",   # indentation-with-invalid-multiple
+  "E114",   # indentation-with-invalid-multiple-comment
+  "E117",   # over-indented
+  "W191",   # indentation-contains-tabs
+  "W291",   # trailing-whitespace
+  "W292",   # no-newline-at-end-of-file
+  "W293",   # whitespace-before-comment
 
-  # --- プロジェクト構造関連 ---
-  # パッケージへの__init__.py必要性（スクリプト単体では不要）
-  "INP001", # implicit-namespace-package
+  # --- 日本語対応 ---
+  # 日本語の全角文字(括弧、句読点等)がラテン文字と誤認される
+  "RUF001", # ambiguous-unicode-character-string
+  "RUF002", # ambiguous-unicode-character-docstring
+  "RUF003", # ambiguous-unicode-character-comment
+  # 日本語docstringでは末尾のピリオドや句点の強制が不自然である
+  "D400",   # ends-in-period
+  "D415",   # ends-in-punctuation
 
-  # --- 実用性の観点から除外 ---
-
-  # TODOコメントの存在を禁止するのは非現実的
+  # --- 開発ワークフロー ---
+  # 開発段階で必要なコメントタグやprint文を許可する
+  "T201",   # print (GitHub Actions等でのログ出力に必要)
+  "ERA001", # commented-out-code (開発中に必要)
+  "FIX001", # line-contains-fixme
   "FIX002", # line-contains-todo
+  "FIX003", # line-contains-xxx
+  "FIX004", # line-contains-hack
+  "TD002",  # missing-todo-author (個人開発では過度)
+  "TD003",  # missing-todo-link (個人開発では過度)
 
-  # TODO作者の記載を強制するのは過度
-  "TD002", # missing-todo-author
+  # --- プロジェクト構造 ---
+  "INP001", # implicit-namespace-package (スクリプト単体では__init__.py不要)
+  "CPY001", # missing-copyright-notice (個人プロジェクトでは過剰)
+  "EXE001", # shebang-not-executable (Windows環境では実行権限の概念が異なる)
+  "EXE002", # shebang-missing-executable-file (同上)
 
-  # TODOに関連issueリンクを強制するのは過度
-  "TD003", # missing-todo-link
-
-  # コメントアウトされたコードの検出（開発中は必要）
-  "ERA001", # commented-out-code
-
-  # --- GitHub Actions実行時のログ出力のため ---
-  # print文の使用を許可（ログ出力のため必要）
-  "T201", # print
-
-  # --- コメント・ドキュメント関連 ---
-  # ドキュメント文字列の末尾ピリオドを強制しない
-  "D400", # missing-trailing-period
-  "D415", # missing-terminal-punctuation
+  # --- スタイル選好 ---
+  # Python 3.13ではPEP 604/585がネイティブ対応、isortで既にfuture annotations強制中
+  "FA100",  # future-annotations-missing
+  "FA102",  # future-annotations-in-older-syntax
+  # 可読性や誤検知の観点から無効化する
+  "SIM108", # if-else-block-instead-of-if-exp (複雑条件で可読性低下)
+  "SIM300", # yoda-conditions (誤検知報告あり)
 ]
 
-# 自動修正可能なルール
-# "ALL"で全てのルールの自動修正を有効化
-# 安全な修正のみが自動適用されます
+# 全ルールの自動修正を有効化する
 fixable = ["ALL"]
-
-# 自動修正を無効にするルール
-# 空リストは全ての修正を許可することを意味します
-# 特定のルールの修正を避けたい場合はここに追加
 unfixable = []
 
-# ダミー変数の正規表現パターン
-# アンダースコアで始まる変数や、明示的にdummy/unusedという名前の変数は
-# 未使用でも警告されません
+# ダミー変数パターン
+# アンダースコア先頭やdummy/unusedという名前は未使用でも警告しない
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?)|dummy|unused)$"
 
-# リントでもプレビュー機能を有効化
+# リントでもプレビュー機能を有効化する
 preview = true
 
-# 明示的にプレビュールールを有効化
-# プレビュー段階の個別ルールを選択的に有効化できます
+# プレビュールールを明示的に有効化する
 explicit-preview-rules = true
 
-# 型チェック用のモジュール
-# これらのモジュールからのインポートは型チェック専用と見なされます
+# 型チェック用モジュール
 typing-modules = ["typing", "typing_extensions"]
 
-# コード内のタスクタグ
-# これらのタグを含むコメントは特別な意味を持ちます
-# 日本語のタグも含めることで、日本語コメントでの開発に対応
+# コード内のタスクタグ(日本語タグも含む)
 task-tags = [
   "TODO",
   "FIXME",
@@ -221,78 +180,48 @@ task-tags = [
   "NOTE",
   "ISSUE",
   "XXX",
-  "やること",
-  "修正",
-  "バグ",
-  "ノート",
-  "問題",
-  "要修正",
-  "要確認",
-  "仮実装",
 ]
 
-# ===============================================================================
+# =============================================================================
 # 個別ルール設定
-# ===============================================================================
+# =============================================================================
 
-# --- flake8-annotations: 型アノテーション関連 ---
+# --- flake8-annotations: 型アノテーション ---
 [lint.flake8-annotations]
-# *args に Any 型を許可するか
-# false: より厳密な型を要求
+# *argsにAny型を許可しない
 allow-star-arg-any = false
-
-# 完全に型注釈のない関数を無視するか
-# false: 全ての関数に型注釈を要求
+# 完全に型注釈のない関数も検査対象とする
 ignore-fully-untyped = false
-
-# ダミー引数の型注釈を抑制するか
-# false: ダミー引数にも型注釈を要求
+# ダミー引数にも型注釈を要求する
 suppress-dummy-args = false
-
-# None を返す関数の戻り値型注釈を抑制するか
-# false: 明示的に -> None を要求
+# None返却関数にも明示的な -> None を要求する
 suppress-none-returning = false
-
-# __init__ メソッドが None を返すことを要求
-# MyPyとの互換性のため
+# __init__にもNone返却型を要求する(mypy互換)
 mypy-init-return = true
 
-# --- flake8-bandit: セキュリティ関連 ---
+# --- flake8-bandit: セキュリティ ---
 [lint.flake8-bandit]
-# 型付き例外のチェックを有効化
-# except Exception: のような広範な例外キャッチを警告
+# 型付き例外のチェックを有効化する
 check-typed-exception = true
-
-# flake8-banditプラグインの追加設定については公式ドキュメントを参照
-# セキュリティチェックはデフォルト設定で実行されます
-
-# --- flake8-bugbear: バグの可能性があるコード ---
-[lint.flake8-bugbear]
-# イミュータブルと見なす追加の呼び出し
-# デフォルトリストに追加する関数やデコレータ
-extend-immutable-calls = []
-
-# --- flake8-builtins: 組み込み名のシャドウイング ---
-[lint.flake8-builtins]
-# 無視する組み込み名のリスト
-# 特定の組み込み名の上書きを許可する場合に使用
-builtins-ignorelist = []
 
 # --- flake8-comprehensions: 内包表記の最適化 ---
 [lint.flake8-comprehensions]
-# dict() にキーワード引数を許可するか
-# false: dict comprehension の使用を推奨
+# dict()にキーワード引数を許可しない(dict comprehensionを推奨)
 allow-dict-calls-with-keyword-arguments = false
 
 # --- flake8-errmsg: エラーメッセージ ---
 [lint.flake8-errmsg]
-# エラーメッセージ文字列の最大長
-# 短いメッセージは変数に格納することを推奨
+# 30文字以下のエラーメッセージは直接記述を許可する
 max-string-length = 30
+
+# --- flake8-implicit-str-concat: 暗黙的文字列結合 ---
+[lint.flake8-implicit-str-concat]
+# 複数行にまたがる暗黙的文字列結合を許可する
+allow-multiline = true
 
 # --- flake8-import-conventions: インポート規約 ---
 [lint.flake8-import-conventions]
-# 一般的なライブラリのエイリアス規約
+
 [lint.flake8-import-conventions.aliases]
 "numpy" = "np"
 "pandas" = "pd"
@@ -300,64 +229,36 @@ max-string-length = 30
 "seaborn" = "sns"
 "tensorflow" = "tf"
 
-# --- flake8-pytest-style: pytest スタイル ---
+# --- flake8-pytest-style: pytestスタイル ---
 [lint.flake8-pytest-style]
-# フィクスチャに括弧を要求
 fixture-parentheses = true
-
-# マーカーに括弧を要求
 mark-parentheses = true
-
-# パラメータ化の名前の形式
-# csv: カンマ区切り文字列
-# tuple: タプル
-# list: リスト
 parametrize-names-type = "csv"
-
-# パラメータ化の値の形式
 parametrize-values-type = "list"
-
-# パラメータ化の各行の形式
 parametrize-values-row-type = "tuple"
 
 # --- flake8-quotes: クォートの一貫性 ---
 [lint.flake8-quotes]
-# インライン文字列のクォートスタイル
 inline-quotes = "double"
-
-# 複数行文字列のクォートスタイル
 multiline-quotes = "double"
-
-# docstringのクォートスタイル
 docstring-quotes = "double"
-
-# エスケープを避けるためにクォートスタイルを変更するか
+# エスケープ回避のためにクォートスタイルの変更を許可する
 avoid-escape = true
-
-# --- flake8-self: プライベートメンバーアクセス ---
-[lint.flake8-self]
-# チェックを無視する名前のリスト
-ignore-names = []
 
 # --- flake8-tidy-imports: インポートの整理 ---
 [lint.flake8-tidy-imports]
-# 相対インポートの禁止レベル
-# "all": 全ての相対インポートを禁止
-# "parents": 親ディレクトリからの相対インポートのみ禁止
+# 全ての相対インポートを禁止する
 ban-relative-imports = "all"
 
 # --- flake8-type-checking: 型チェック専用インポート ---
 [lint.flake8-type-checking]
-# 厳密モード
-# 実行時に不要な型チェック専用インポートを検出
+# 厳密モード: 実行時に不要な型チェック専用インポートを検出する
 strict = true
 
-# 除外するモジュール
-# これらは常に通常のインポートとして扱われる
+# 常に通常のインポートとして扱うモジュール
 exempt-modules = ["typing", "typing_extensions"]
 
-# 実行時に評価される基底クラス
-# これらを継承する場合は通常のインポートが必要
+# 実行時に評価される基底クラス(通常のインポートが必要)
 runtime-evaluated-base-classes = [
   "pydantic.BaseModel",
   "sqlalchemy.orm.DeclarativeBase",
@@ -370,63 +271,49 @@ runtime-evaluated-decorators = [
   "dataclasses.dataclass",
 ]
 
-# アノテーションをクォートで囲むか
-# PEP 563 (from __future__ import annotations) との互換性
+# アノテーションをクォートで囲む(PEP 563互換)
 quote-annotations = true
 
 # --- flake8-unused-arguments: 未使用引数 ---
 [lint.flake8-unused-arguments]
-# 可変長引数の名前を無視するか
-# false: *args, **kwargs も未使用チェックの対象
+# *args, **kwargsも未使用チェックの対象とする
 ignore-variadic-names = false
 
 # --- isort: インポート文の整理 ---
 [lint.isort]
-# 各インポートを単一行にするか
-# false: 複数のインポートを1行にまとめることを許可
 force-single-line = false
-
-# エイリアスインポートを強制的に改行するか
+# エイリアスインポートを強制的に改行する
 force-wrap-aliases = true
-
-# as を使った複数インポートを結合するか
+# as付き複数インポートを結合する
 combine-as-imports = true
-
-# 末尾カンマで改行を分割するか
+# 末尾カンマで改行を分割する
 split-on-trailing-comma = true
-
-# 必須のインポート文
-# 全てのファイルで future annotations を使用
+# 全ファイルでfuture annotationsを強制する
+# py313でも遅延評価による循環参照解決やpydantic互換性のため維持する
 required-imports = ["from __future__ import annotations"]
-
-# ファーストパーティモジュール（プロジェクト固有）
-# プロジェクトに応じて設定
+# プロジェクト固有のモジュール(プロジェクトに応じて設定)
 known-first-party = []
-
-# インポートセクションの順序
 section-order = [
-  "future",           # __future__ インポート
-  "standard-library", # 標準ライブラリ
-  "third-party",      # サードパーティ
-  "first-party",      # プロジェクト内
-  "local-folder",     # ローカルフォルダ
+  "future",
+  "standard-library",
+  "third-party",
+  "first-party",
+  "local-folder",
 ]
 
 # --- mccabe: 循環的複雑度 ---
 [lint.mccabe]
-# 最大複雑度
-# 10を超える関数は理解が困難になる傾向がある
+# 複雑度10を超える関数は理解困難になる傾向がある
 max-complexity = 10
 
 # --- pep8-naming: 命名規則 ---
+# ignore-namesはデフォルト値を使用する(setUp, tearDown等のunittest関連名を含む)
+# 空リストで上書きするとこれらの名前が警告対象になるため、設定を省略する
 [lint.pep8-naming]
-# チェックを無視する名前
-ignore-names = []
 
 # クラスメソッドと見なすデコレータ
 classmethod-decorators = [
   "classmethod",
-  "pydantic.validator",
   "pydantic.field_validator",
 ]
 
@@ -437,17 +324,12 @@ staticmethod-decorators = ["staticmethod"]
 [lint.pycodestyle]
 # docstringの最大行長
 max-doc-length = 88
-
-# 長いタスクコメントを無視するか
-# false: タスクコメントも行長制限の対象
+# タスクコメントも行長制限の対象とする
 ignore-overlong-task-comments = false
 
-# --- pydocstyle: docstring スタイル ---
+# --- pydocstyle: docstringスタイル ---
 [lint.pydocstyle]
-# docstring の規約
-# google: Google スタイル
-# numpy: NumPy スタイル
-# pep257: PEP 257 スタイル
+# convention設定によりD203, D204, D213等が自動的に無効化される
 convention = "google"
 
 # プロパティと見なすデコレータ
@@ -457,76 +339,63 @@ property-decorators = [
   "functools.cached_property",
 ]
 
-# --- pylint: 様々な品質チェック ---
+# --- pylint: 品質チェック ---
 [lint.pylint]
 # マジック値として許可する型
-# これらの型のリテラル値は警告されない
 allow-magic-value-types = ["int", "str", "float"]
-
 # 関数の最大引数数
 max-args = 5
-
 # ブール式の最大項数
 max-bool-expr = 3
-
-# 最大分岐数（if/elif）
+# 最大分岐数(if/elif)
 max-branches = 10
-
 # 最大ローカル変数数
 max-locals = 10
-
 # 最大ネストブロック数
 max-nested-blocks = 3
-
-# 最大位置引数数
+# 最大位置引数数(キーワード引数の使用を促進する)
 max-positional-args = 3
-
 # クラスの最大パブリックメソッド数
 max-public-methods = 20
-
 # 関数の最大return文数
 max-returns = 5
-
 # 関数の最大文数
 max-statements = 35
 
-# min-public-methods設定は現在のRuff pylintプラグインでは利用できません
-# データクラスなど、メソッドを持たないクラスは問題になりません
-
 # --- pyupgrade: 最新Python構文への更新 ---
 [lint.pyupgrade]
-# 実行時の型情報を保持するか
-# true: typing.TYPE_CHECKING での条件分岐を保持
-keep-runtime-typing = true
+# Python 3.13ではPEP 604/585がネイティブ対応のため、この設定はno-opである
+# 下位バージョンをターゲットにする場合は有効化すること
+# keep-runtime-typing = true
 
-# ===============================================================================
+# =============================================================================
 # ファイル別の除外設定
-# ===============================================================================
+# =============================================================================
 [lint.per-file-ignores]
-# テストファイルは特定のルールを緩和
-"test/**/*.py" = [
-  "S101",    # assert文の使用（テストでは必須）
-  "S105",    # ハードコードされたパスワード（テストデータ）
-  "S106",    # ハードコードされたパスワード（テストデータ）
-  "ARG",     # 未使用引数（pytest fixtureなど）
-  "FBT",     # ブール引数（テストパラメータ）
-  "PLR2004", # マジックナンバー（テストの期待値）
-  "S311",    # 擬似乱数（テスト用途では問題なし）
-  "ANN",     # 型注釈（テストでは優先度低）
-  "D",       # docstring（テストコードでは任意）
-  "PD901",   # df変数名（DataFrameのテストでは一般的）
-  "PLR0913", # 引数が多い（複雑なテストケース）
-  "SLF001",  # プライベートメンバーアクセス（内部テスト）
+
+# テストファイル
+"tests/**/*.py" = [
+  "S101",    # assert文の使用(テストでは必須)
+  "S105",    # ハードコードされたパスワード(テストデータ)
+  "S106",    # 引数にハードコードされたパスワード(テストデータ)
+  "ARG",     # 未使用引数(pytest fixtureで発生)
+  "FBT",     # ブール引数(テストパラメータで頻出)
+  "PLR2004", # マジックナンバー(テストの期待値)
+  "S311",    # 擬似乱数(テスト用途では問題なし)
+  "ANN",     # 型注釈(テストでは優先度低)
+  "D",       # docstring(テストコードでは任意)
+  "PLR0913", # 引数が多い(複雑なテストケース)
+  "SLF001",  # プライベートメンバーアクセス(内部テスト)
 ]
 
-# データベースマイグレーションファイル（自動生成）
+# データベースマイグレーション(自動生成ファイル)
 "**/migrations/**/*.py" = [
-  "ALL", # 自動生成ファイルなので全ルールを無視
+  "ALL",
 ]
 
 # 設定ファイル
 "conf.py" = [
-  "D100",   # モジュールレベルdocstring不要
+  "D100", # モジュールレベルdocstring不要
 ]
 
 "setup.py" = [
@@ -535,20 +404,17 @@ keep-runtime-typing = true
 ]
 
 "docs/conf.py" = [
-  "D100",   # モジュールレベルdocstring不要
-  "A001",   # 組み込み名の上書き（Sphinx設定で一般的）
+  "D100", # モジュールレベルdocstring不要
+  "A001", # 組み込み名の上書き(Sphinx設定で一般的)
 ]
 
 # CLIスクリプト
 "scripts/**/*.py" = [
-  "S603",    # shell=Trueでのsubprocess呼び出し（S604と競合）
-  "S607",    # 実行可能パス（gh, git, uvなどの実行で必要）
+  "S603", # shell=Trueでのsubprocess呼び出し
+  "S607", # 実行可能パス(gh, git, uv等の実行で必要)
 ]
 
-# 実験的・プロトタイプコード
-"experimental/**/*.py" = [
-  "ERA001",  # コメントアウトされたコード（実験中）
-  "FIX002",  # TODOコメント（未完成の印）
-  "PLR2004", # マジックナンバー（調整中の値）
-  "S101",    # assert文（デバッグ用）
+# 型スタブファイル
+"**/*.pyi" = [
+  "PYI025", # docstringとの競合回避
 ]
