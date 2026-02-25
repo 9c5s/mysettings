@@ -9,8 +9,7 @@
 # =============================================================================
 
 # Pythonのターゲットバージョン
-# py313ではmatch文、Union型の|演算子、組み込み型の汎用化等が利用可能である
-target-version = "py313"
+target-version = "py314"
 
 # 1行あたりの最大文字数(Blackのデフォルトと同値)
 line-length = 88
@@ -271,9 +270,6 @@ runtime-evaluated-decorators = [
   "dataclasses.dataclass",
 ]
 
-# アノテーションをクォートで囲む(PEP 563互換)
-quote-annotations = true
-
 # --- flake8-unused-arguments: 未使用引数 ---
 [lint.flake8-unused-arguments]
 # *args, **kwargsも未使用チェックの対象とする
@@ -289,8 +285,8 @@ combine-as-imports = true
 # 末尾カンマで改行を分割する
 split-on-trailing-comma = true
 # 全ファイルでfuture annotationsを強制する
-# py313でも遅延評価による循環参照解決やpydantic互換性のため維持する
-required-imports = ["from __future__ import annotations"]
+# py314以降ではPEP 604/585がネイティブ対応のため、この設定はno-opである
+required-imports = []
 # プロジェクト固有のモジュール(プロジェクトに応じて設定)
 known-first-party = []
 section-order = [
