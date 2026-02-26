@@ -7,13 +7,14 @@
 import json
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, cast
 
 from desktop_notifier import DEFAULT_SOUND, DesktopNotifierSync, Icon, Urgency
 
 APP_NAME = "Claude Code"
-APP_ICON = Icon(path=Path(__file__).resolve().parent / "icon.png")
+APP_ICON = Icon(
+    uri="https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/claude-ai-icon.png",
+)
 
 
 @dataclass(frozen=True, slots=True)
