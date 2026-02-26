@@ -4,11 +4,10 @@
 # ///
 """Claude Code hooks用の通知スクリプト"""
 
-from __future__ import annotations
-
 import json
 import sys
 from dataclasses import dataclass
+from typing import Any, cast
 
 from desktop_notifier import DEFAULT_SOUND, DesktopNotifierSync, Urgency
 
@@ -51,31 +50,39 @@ def main() -> None:
     """stdinからhookイベントのJSONを読み取り、トースト通知を表示する."""
     try:
         raw = sys.stdin.read()
-    except OSError, UnicodeDecodeError:
+    except OSError, UnicodeDecodeError:  # PEP 758 (Python 3.14+)
         raw = ""
 
     if not raw.strip():
         return
 
     try:
-        data = json.loads(raw)
+        raw_data = json.loads(raw)
     except json.JSONDecodeError:
         return
 
-    event = data.get("hook_event_name", "")
+    if not isinstance(raw_data, dict):
+        return
+
+    data = cast("dict[str, Any]", raw_data)
+    event = str(data.get("hook_event_name", ""))
     template = TEMPLATES.get(event)
     if template is None:
         return
 
-    project = get_project_name(data.get("cwd", ""))
+    project = get_project_name(str(data.get("cwd", "")))
 
-    notifier = DesktopNotifierSync(app_name=APP_NAME)
-    notifier.send(
-        title=template.title,
-        message=template.message.format(project=project),
-        urgency=template.urgency,
-        sound=DEFAULT_SOUND,
-    )
+    try:
+        notifier = DesktopNotifierSync(app_name=APP_NAME)
+        notifier.send(
+            title=template.title,
+            message=template.message.replace("{project}", project),
+            urgency=template.urgency,
+            sound=DEFAULT_SOUND,
+        )
+    except Exception:  # noqa: BLE001
+        # 通知の送信失敗はユーザー操作をブロックすべきではない
+        return
 
 
 if __name__ == "__main__":
