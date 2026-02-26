@@ -9,6 +9,7 @@
 
 """Claude Code hooks用の通知スクリプト"""
 
+import hashlib
 import json
 import sys
 import tempfile
@@ -33,7 +34,7 @@ class _Template:
     urgency: Urgency
 
 
-TEMPLATES: dict[str, _Template] = {
+_TEMPLATES: dict[str, _Template] = {
     "Notification": _Template(
         title="{project} - {hook_event_name}",
         message="{message}",
@@ -48,17 +49,20 @@ TEMPLATES: dict[str, _Template] = {
 
 
 def _get_app_icon() -> Icon:
-    """SVGからPNGを生成し一時ファイル経由でIconを返す
+    """SVGからPNGを生成しキャッシュ済みファイルのIconを返す
+
+    SVGのハッシュに基づく固定ファイル名でtempディレクトリにキャッシュする
+    同じSVGに対しては既存のPNGを再利用するため、ファイルは1つしか存在しない
 
     Returns:
         Icon インスタンス
     """
-    png_bytes = resvg_py.svg_to_bytes(svg_string=_ICON_SVG)
-    # Icon はファイルパスを要求するため一時ファイルに書き出す
-    # ファイルはプロセス終了時に削除する
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-        f.write(png_bytes)
-        return Icon(path=Path(f.name))
+    digest = hashlib.sha256(_ICON_SVG.encode()).hexdigest()[:16]
+    icon_path = Path(tempfile.gettempdir()) / f"claude_code_icon_{digest}.png"
+    if not icon_path.exists():
+        png_bytes = resvg_py.svg_to_bytes(svg_string=_ICON_SVG)
+        icon_path.write_bytes(png_bytes)
+    return Icon(path=icon_path)
 
 
 def _get_project_name(cwd: str) -> str:
@@ -68,7 +72,7 @@ def _get_project_name(cwd: str) -> str:
         cwd: 作業ディレクトリの絶対パス
 
     Returns:
-        ディレクトリ名. 空文字列の場合は "unknown" を返す
+        ディレクトリ名 空文字列の場合は"unknown"を返す
     """
     if not cwd:
         return "unknown"
@@ -79,7 +83,7 @@ def _render(template: str, values: dict[str, str]) -> str:
     """テンプレート文字列のプレースホルダを値で置換する
 
     Args:
-        template: "{key}" 形式のプレースホルダを含む文字列
+        template: "{key}"形式のプレースホルダを含む文字列
         values: プレースホルダ名と置換値の辞書
 
     Returns:
@@ -97,7 +101,6 @@ def main() -> None:
     Claude Codeのhooksから呼び出されることを想定する
     stdinにはhook_event_name, cwdなどを含むJSONが渡される
     対応イベント: Notification(入力待ち), Stop(応答完了)
-    通知の送信に失敗しても例外は発生しない
     """
     try:
         raw = sys.stdin.read()
@@ -117,7 +120,7 @@ def main() -> None:
 
     data = cast("dict[str, Any]", raw_data)
     event = str(data.get("hook_event_name", ""))
-    template = TEMPLATES.get(event)
+    template = _TEMPLATES.get(event)
     if template is None:
         return
 
