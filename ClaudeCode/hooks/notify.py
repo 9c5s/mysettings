@@ -125,10 +125,10 @@ def main() -> None:
         return
 
     values = {
-        "project": _get_project_name(str(data.get("cwd", ""))),
+        "project": _get_project_name(str(data.get("cwd") or "")),
         "hook_event_name": event,
-        "message": str(data.get("message", "")),
-        "last_assistant_message": str(data.get("last_assistant_message", "")),
+        "message": str(data.get("message") or ""),
+        "last_assistant_message": str(data.get("last_assistant_message") or ""),
     }
 
     try:
