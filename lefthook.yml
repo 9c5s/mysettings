@@ -2,28 +2,36 @@
 pre-commit:
   parallel: true
   jobs:
+    - name: ignored-files
+      run: "! git check-ignore {staged_files}"
+
     - name: lefthook
       glob: lefthook.yml
       run: uvx lefthook validate
+
     - name: gitleaks
       run: bunx gitleaks protect --staged --verbose
+
     - name: shell
       glob: '*.{sh,bash}'
       run: >
         bunx shfmt -w {staged_files} &&
         bunx shellcheck {staged_files}
       stage_fixed: true
+
     - name: yaml
       glob: '*.{yaml,yml}'
       run: >
         uvx yamlfix {staged_files} &&
         uvx yamllint {staged_files}
       stage_fixed: true
+
     - name: biome
       run: >
         bunx @biomejs/biome check --write --no-errors-on-unmatched
         --files-ignore-unknown=true {staged_files}
       stage_fixed: true
+
     - name: python
       glob: '*.{py,pyi}'
       run: >

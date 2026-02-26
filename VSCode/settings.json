@@ -88,21 +88,29 @@
 		"sound": "on"
 	},
 	"accessibility.verbosity.terminal": false,
+	"basedpyright.disableLanguageServices": false,
+	"basedpyright.disableOrganizeImports": true,
+	"biome.suggestInstallingGlobally": false,
 	"calva.prettyPrintingOptions": {
 		"enabled": true,
 		"maxLength": 50,
 		"printEngine": "pprint",
 		"width": 120
 	},
-	"claudeCodeChat.thinking.intensity": "ultrathink",
-	"claudeCodeChat.wsl.claudePath": "/usr/local/bin/claude",
-	"claudeCodeChat.wsl.distro": "Ubuntu",
-	"claudeCodeChat.wsl.enabled": false,
-	"claudeCodeChat.wsl.nodePath": "/usr/bin/node",
+	"chat.mcp.gallery.enabled": true,
+	"chat.viewSessions.orientation": "stacked",
+	"claudeCode.environmentVariables": [],
+	"claudeCode.initialPermissionMode": "plan",
+	"claudeCode.preferredLocation": "panel",
+	"claudeCode.selectedModel": "claude-opus-4-6",
+	"claudeCode.useCtrlEnterToSend": true,
+	"claudeCode.useTerminal": true,
 	"coderabbit.agentType": "Claude Code",
 	"diffEditor.codeLens": true,
-	"diffEditor.ignoreTrimWhitespace": false,
+	"diffEditor.hideUnchangedRegions.enabled": true,
+	"diffEditor.ignoreTrimWhitespace": true,
 	"diffEditor.maxComputationTime": 0,
+	"diffEditor.renderSideBySide": false,
 	"docker.extension.dockerEngineAvailabilityPrompt": false,
 	"editor.accessibilitySupport": "off",
 	"editor.codeActionsOnSave": {
@@ -115,6 +123,7 @@
 	"editor.formatOnSave": true,
 	"editor.guides.bracketPairs": true,
 	"editor.largeFileOptimizations": false,
+	"editor.mouseWheelZoom": true,
 	"editor.tabSize": 2,
 	"editor.tokenColorCustomizations": {
 		"[Tokyo Night]": {
@@ -146,7 +155,9 @@
 					}
 				},
 				{
-					"scope": ["comment.block.documentation entity.name.type.instance"],
+					"scope": [
+						"comment.block.documentation entity.name.type.instance"
+					],
 					"settings": {
 						"foreground": "#73daca"
 					}
@@ -160,7 +171,9 @@
 					}
 				},
 				{
-					"scope": ["comment.block.documentation variable"],
+					"scope": [
+						"comment.block.documentation variable"
+					],
 					"settings": {
 						"foreground": "#e0af68"
 					}
@@ -181,9 +194,13 @@
 	"files.insertFinalNewline": true,
 	"files.trimTrailingWhitespace": true,
 	"geminicodeassist.project": "stunning-layout-t9jrc",
+	"git-graph.date.format": "ISO Date & Time",
 	"git.autofetch": true,
 	"git.blame.editorDecoration.enabled": true,
-	"git.branchProtection": ["main", "master"],
+	"git.branchProtection": [
+		"main",
+		"master"
+	],
 	"git.confirmSync": false,
 	"git.defaultCloneDirectory": "D:\\projects\\",
 	"git.diagnosticsCommitHook.enabled": true,
@@ -210,21 +227,42 @@
 		"pull:command"
 	],
 	"gitlens.launchpad.indicator.enabled": false,
+	"hediet.vscode-drawio.appearance": "light",
+	"hediet.vscode-drawio.resizeImages": null,
+	"hediet.vscode-drawio.theme": "kennedy",
 	"html.format.templating": true,
+	"http.systemCertificatesNode": true,
 	"indentRainbow.colors": [
 		"rgba(255,255,64,0.3)",
 		"rgba(127,255,127,0.3)",
 		"rgba(255,127,255,0.3)",
 		"rgba(79,236,236,0.3)"
 	],
+	"indentRainbow.ignoreErrorLanguages": [
+		"clojure",
+		"markdown"
+	],
 	"indentRainbow.indicatorStyle": "light",
+	"json.schemaDownload.trustedDomains": {
+		"https://biomejs.dev": true,
+		"https://json-schema.org/": true,
+		"https://json.schemastore.org/": true,
+		"https://raw.githubusercontent.com/": true,
+		"https://schemastore.azurewebsites.net/": true,
+		"https://www.schemastore.org/": true
+	},
 	"liveServer.settings.donotShowInfoMsg": true,
 	"Lua.codeLens.enable": true,
 	"Lua.completion.enable": true,
 	"Lua.hint.enable": true,
+	"Lua.workspace.library": [
+		"D:\\projects\\REFrameworkLuaTypedef\\dist\\"
+	],
 	"prettier.bracketSameLine": true,
 	"prettier.endOfLine": "auto",
 	"prettier.printWidth": 120,
+	"python-envs.alwaysUseUv": true,
+	"python-envs.terminal.showActivateButton": true,
 	"python.analysis.autoFormatStrings": true,
 	"python.analysis.autoImportCompletions": true,
 	"python.analysis.inlayHints.callArgumentNames": "all",
@@ -232,14 +270,13 @@
 	"python.analysis.inlayHints.pytestParameters": true,
 	"python.analysis.inlayHints.variableTypes": true,
 	"python.analysis.languageServerMode": "full",
-	"python.analysis.typeCheckingMode": "strict",
 	"python.analysis.typeEvaluation.deprecateTypingAliases": true,
 	"python.analysis.typeEvaluation.enableReachabilityAnalysis": true,
 	"python.analysis.typeEvaluation.strictDictionaryInference": true,
 	"python.analysis.typeEvaluation.strictListInference": true,
 	"python.analysis.typeEvaluation.strictSetInference": true,
-	"python.defaultInterpreterPath": "~\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
-	"python.languageServer": "Pylance",
+	"python.defaultInterpreterPath": "${env:USERPROFILE}\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+	"python.languageServer": "None",
 	"python.terminal.activateEnvInCurrentTerminal": true,
 	"python.terminal.launchArgs": [],
 	"python.terminal.shellIntegration.enabled": true,
@@ -256,27 +293,15 @@
 	"ruff.configuration": "",
 	"ruff.configurationPreference": "filesystemFirst",
 	"ruff.format.preview": false,
-	"ruff.lint.extendSelect": ["ALL"],
-	"ruff.lint.ignore": [
-		"T201",
-		"D400",
-		"D415",
-		"INP001",
-		"ERA001",
-		"RET504",
-		"COM812"
+	"ruff.lint.extendSelect": [
+		"ALL"
 	],
-	"ruff.lint.select": ["ALL"],
+	"ruff.lint.ignore": [],
+	"ruff.lint.select": [
+		"ALL"
+	],
 	"ruff.nativeServer": "on",
-	"runOnSave.commands": [
-		{
-			"command": "clasp push; clasp run main",
-			"finishStatusMessage": "${fileBasename} Pushed",
-			"match": "^D:\\\\projects\\\\imasVJDB\\\\main\\.js$",
-			"runIn": "terminal",
-			"runningStatusMessage": "Pushing ${fileBasename}"
-		}
-	],
+	"runOnSave.commands": [],
 	"search.useGlobalIgnoreFiles": true,
 	"security.workspace.trust.untrustedFiles": "open",
 	"shellcheck.useWorkspaceRootAsCwd": true,
@@ -315,12 +340,15 @@
 	"terminal.integrated.suggest.enabled": true,
 	"terminal.integrated.tabs.title": "${sequence}",
 	"typescript.updateImportsOnFileMove.enabled": "always",
-	"vsicons.dontShowNewVersionMessage": false,
+	"vsicons.dontShowNewVersionMessage": true,
 	"win-ca.inject": "append",
+	"workbench.auxiliaryActivityBar.location": "default",
 	"workbench.colorTheme": "Tokyo Night",
 	"workbench.editorAssociations": {},
 	"workbench.iconTheme": "material-icon-theme",
-	"workbench.settings.applyToAllProfiles": ["editor.formatOnSave"],
+	"workbench.settings.applyToAllProfiles": [
+		"editor.formatOnSave"
+	],
 	"workbench.startupEditor": "none",
 	"workbench.statusBar.visible": true
 }
