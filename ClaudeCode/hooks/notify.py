@@ -39,13 +39,13 @@ TEMPLATES: dict[str, _Template] = {
 
 
 def get_project_name(cwd: str) -> str:
-    """作業ディレクトリからプロジェクト名を取得する.
+    """作業ディレクトリからプロジェクト名を取得する
 
     Args:
         cwd: 作業ディレクトリの絶対パス
 
     Returns:
-        ディレクトリ名。空文字列の場合は "unknown" を返す。
+        ディレクトリ名 空文字列の場合は"unknown"を返す
     """
     if not cwd:
         return "unknown"
@@ -54,12 +54,12 @@ def get_project_name(cwd: str) -> str:
 
 
 def main() -> None:
-    """stdinからhookイベントのJSONを読み取り、トースト通知を表示する.
+    """stdinからhookイベントのJSONを読み取り通知を表示する
 
-    Claude Codeのhookから呼び出されることを想定する。
-    stdinにはhook_event_name, cwdなどを含むJSONが渡される。
-    対応イベント: Notification (入力待ち), Stop (応答完了)。
-    通知の送信に失敗しても例外は発生しない。
+    Claude Codeのhooksから呼び出されることを想定
+    stdinにはhook_event_name, cwdなどを含むJSONが渡される
+    対応イベント: Notification(入力待ち), Stop(応答完了)
+    通知の送信に失敗しても例外は発生しない
     """
     try:
         raw = sys.stdin.read()
