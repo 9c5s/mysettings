@@ -6,6 +6,7 @@
 	editor = code --wait
 	autocrlf = input
 	symlinks = true
+	excludesfile = ~/.gitignore
 [credential "https://github.com"]
 	helper = !gh auth git-credential
 [credential "https://gist.github.com"]
