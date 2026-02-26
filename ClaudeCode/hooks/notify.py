@@ -61,7 +61,9 @@ def _get_app_icon() -> Icon:
     icon_path = Path(tempfile.gettempdir()) / f"claude_code_icon_{digest}.png"
     if not icon_path.exists():
         png_bytes = resvg_py.svg_to_bytes(svg_string=_ICON_SVG)
-        icon_path.write_bytes(png_bytes)
+        tmp_path = icon_path.with_suffix(".tmp")
+        tmp_path.write_bytes(png_bytes)
+        tmp_path.replace(icon_path)
     return Icon(path=icon_path)
 
 
@@ -72,11 +74,9 @@ def _get_project_name(cwd: str) -> str:
         cwd: 作業ディレクトリの絶対パス
 
     Returns:
-        ディレクトリ名 空文字列の場合は"unknown"を返す
+        ディレクトリ名 取得できない場合は"unknown"を返す
     """
-    if not cwd:
-        return "unknown"
-    return cwd.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    return Path(cwd).name or "unknown"
 
 
 def _render(template: str, values: dict[str, str]) -> str:
