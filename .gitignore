@@ -7,5 +7,6 @@ __pycache__/
 .tmp/
 .venv/
 desktop.ini
+docs/plans/
 node_modules/
 Thumbs.db
