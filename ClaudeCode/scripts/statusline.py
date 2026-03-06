@@ -164,18 +164,23 @@ def _get_oauth_token() -> str | None:
     """
     # 1. クレデンシャルファイルから読む
     cred_path = Path.home() / ".claude" / ".credentials.json"
-    try:
+    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
         cred_text = cred_path.read_text(encoding="utf-8")
         cred_data = json.loads(cred_text)
         token = cred_data.get("claudeAiOauth", {}).get("accessToken")
         if token:
             return str(token)
-    except OSError, json.JSONDecodeError, KeyError, TypeError:  # noqa: S110
-        pass
 
     # 2. macOS Keychainから取得
     if platform.system() == "Darwin":
-        try:
+        with contextlib.suppress(
+            subprocess.TimeoutExpired,
+            subprocess.SubprocessError,
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+            OSError,
+        ):
             result = subprocess.run(
                 [  # noqa: S607
                     "security",
@@ -194,15 +199,6 @@ def _get_oauth_token() -> str | None:
                 token = keychain_data.get("claudeAiOauth", {}).get("accessToken")
                 if token:
                     return str(token)
-        except (  # noqa: S110
-            subprocess.TimeoutExpired,
-            subprocess.SubprocessError,
-            json.JSONDecodeError,
-            KeyError,
-            TypeError,
-            OSError,
-        ):
-            pass
 
     return None
 
@@ -245,15 +241,13 @@ def _get_usage() -> dict[str, Any] | None:
     # キャッシュチェック
     now = datetime.now(UTC).timestamp()
     cached_data = None
-    try:
+    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
         cache_text = _CACHE_PATH.read_text(encoding="utf-8")
         cache_obj = json.loads(cache_text)
         cached_ts = cache_obj.get("_cached_at", 0)
         cached_data = cache_obj.get("data")
         if now - cached_ts < _CACHE_TTL and cached_data is not None:
             return cached_data
-    except OSError, json.JSONDecodeError, KeyError, TypeError:  # noqa: S110
-        pass
 
     # API呼び出し
     token = _get_oauth_token()
@@ -267,7 +261,7 @@ def _get_usage() -> dict[str, Any] | None:
 
     # atomic writeでキャッシュ保存
     cache_obj = {"_cached_at": now, "data": data}
-    try:
+    with contextlib.suppress(OSError):
         tmp_fd, tmp_name = tempfile.mkstemp(
             dir=_CACHE_PATH.parent, suffix=".tmp", prefix="claude-usage-"
         )
@@ -280,8 +274,6 @@ def _get_usage() -> dict[str, Any] | None:
             # 書き込み失敗時はtmpファイルを削除する
             with contextlib.suppress(OSError):
                 Path(tmp_name).unlink()
-    except OSError:  # noqa: S110
-        pass
 
     return data
 
