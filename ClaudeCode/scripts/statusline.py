@@ -161,7 +161,7 @@ def _format_reset_time_short(iso_str: str) -> str:
         "HH:MM" 形式の文字列
     """
     local_dt = _parse_iso_to_local(iso_str)
-    return f"{local_dt.hour}:{local_dt.minute:02d}"
+    return f"{local_dt.hour:02d}:{local_dt.minute:02d}"
 
 
 def _format_reset_date(iso_str: str) -> str:
@@ -174,7 +174,7 @@ def _format_reset_date(iso_str: str) -> str:
         "M/D HH:MM" 形式の文字列(0埋めなし)
     """
     local_dt = _parse_iso_to_local(iso_str)
-    return f"{local_dt.month}/{local_dt.day} {local_dt.hour}:{local_dt.minute:02d}"
+    return f"{local_dt.month}/{local_dt.day} {local_dt.hour:02d}:{local_dt.minute:02d}"
 
 
 # ---------------------------------------------------------------------------
@@ -495,9 +495,11 @@ def _seg_lines(data: dict[str, Any]) -> Segment | None:
     if added == 0 and removed == 0:
         return None
 
-    lines_str = f"+{added}/-{removed}"
-    label = f"{_ICON_PENCIL} {lines_str}"
-    return Segment(text=label, width=len(lines_str) + 2)
+    raw_str = f"+{added}/-{removed}"
+    colored_add = _colorize(f"+{added}", _Color.GREEN)
+    colored_del = _colorize(f"-{removed}", _Color.RED)
+    label = f"{_ICON_PENCIL} {colored_add}/{colored_del}"
+    return Segment(text=label, width=len(raw_str) + 2)
 
 
 def _seg_rate_5h(data: dict[str, Any]) -> Segment | None:
@@ -522,7 +524,7 @@ def _seg_rate_5h(data: dict[str, Any]) -> Segment | None:
     if utilization is None or resets_at is None:
         return None
 
-    pct_val = float(utilization) * 100
+    pct_val = float(utilization)
     pct_int = int(pct_val)
     color = _color_for_utilization(pct_val)
 
@@ -561,7 +563,7 @@ def _seg_rate_7d(data: dict[str, Any]) -> Segment | None:
     if utilization is None or resets_at is None:
         return None
 
-    pct_val = float(utilization) * 100
+    pct_val = float(utilization)
     pct_int = int(pct_val)
     color = _color_for_utilization(pct_val)
 
