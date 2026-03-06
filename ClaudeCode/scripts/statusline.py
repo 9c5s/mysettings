@@ -274,6 +274,7 @@ def _get_usage() -> dict[str, Any] | None:
                 json.dump(cache_obj, f)
             # Windowsではreplaceが安全に動作する(Python 3.3+)
             Path(tmp_name).replace(_CACHE_PATH)
+            _CACHE_PATH.chmod(0o600)
         except OSError:
             # 書き込み失敗時はtmpファイルを削除する
             with contextlib.suppress(OSError):
