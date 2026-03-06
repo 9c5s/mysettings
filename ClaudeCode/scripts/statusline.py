@@ -165,7 +165,9 @@ def _get_oauth_token() -> str | None:
     """
     # 1. クレデンシャルファイルから読む
     cred_path = Path.home() / ".claude" / ".credentials.json"
-    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
+    with contextlib.suppress(
+        OSError, json.JSONDecodeError, KeyError, TypeError, AttributeError
+    ):
         cred_text = cred_path.read_text(encoding="utf-8")
         cred_data = json.loads(cred_text)
         token = cred_data.get("claudeAiOauth", {}).get("accessToken")
@@ -242,7 +244,9 @@ def _get_usage() -> dict[str, Any] | None:
     # キャッシュチェック
     now = datetime.now(UTC).timestamp()
     cached_data = None
-    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
+    with contextlib.suppress(
+        OSError, json.JSONDecodeError, KeyError, TypeError, AttributeError
+    ):
         cache_text = _CACHE_PATH.read_text(encoding="utf-8")
         cache_obj = json.loads(cache_text)
         cached_ts = cache_obj.get("_cached_at", 0)
@@ -505,13 +509,13 @@ def _seg_rate_common(
     if utilization is None or resets_at is None:
         return None
 
-    pct_val = float(utilization)
-    color = _color_for_utilization(pct_val)
-
     try:
+        pct_val = float(utilization)
         reset_str = fmt_reset(str(resets_at))
     except ValueError, TypeError:
         return None
+
+    color = _color_for_utilization(pct_val)
 
     pct_str = f"{int(pct_val)}%"
     colored_pct = _colorize(pct_str, color)
