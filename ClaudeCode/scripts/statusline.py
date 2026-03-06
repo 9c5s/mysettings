@@ -17,7 +17,6 @@ import contextlib
 import json
 import os
 import platform
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -37,7 +36,6 @@ class _Color(IntEnum):
     GREEN = 32
     YELLOW = 33
     RED = 31
-    DIM = 90
     RESET = 0
 
 
@@ -47,11 +45,9 @@ class Segment:
 
     Attributes:
         text: ANSIエスケープ込みの表示文字列
-        width: 表示幅(ANSIエスケープを除いた文字数)
     """
 
     text: str
-    width: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,7 +66,6 @@ class _LineConfig:
 
 
 _SEPARATOR = " \u2502 "  # " │ "
-_SEPARATOR_WIDTH = 3  # ANSIを除いた表示幅
 _CACHE_TTL = 360  # 秒
 _CACHE_PATH = Path(tempfile.gettempdir()) / "claude-usage-cache.json"
 _API_URL = "https://api.anthropic.com/api/oauth/usage"
@@ -79,11 +74,12 @@ _API_TIMEOUT = 5
 
 _ICON_FOLDER = "\uf07c"  # nf-fa-folder_open
 _ICON_BRANCH = "\ue725"  # nf-dev-git_branch
-_ICON_MODEL = "\U000f068c"  # nf-md-robot (󰚌)
+_ICON_MODEL = "\U000f068c"  # nf-md-robot
 _ICON_CHART = "\uf080"  # nf-fa-bar_chart
-_ICON_PENCIL = "\U000f03eb"  # nf-md-pencil (󰏫)
+_ICON_PENCIL = "\U000f03eb"  # nf-md-pencil
 _ICON_CLOCK = "\uf017"  # nf-fa-clock_o
 _ICON_CALENDAR = "\uf073"  # nf-fa-calendar
+_ICON_RESET = "\uf0e2"  # nf-fa-undo
 
 
 def _colorize(text: str, color: _Color) -> str:
@@ -131,16 +127,16 @@ def _parse_iso_to_local(iso_str: str) -> datetime:
 
 
 def _format_reset_time_short(iso_str: str) -> str:
-    """リセット時刻を "hh:mm" 形式でフォーマットする
+    """リセット時刻を "h:mm" 形式でフォーマットする
 
     Args:
         iso_str: ISO 8601形式の日時文字列
 
     Returns:
-        "HH:MM" 形式の文字列
+        "H:MM" 形式の文字列(時は0埋めなし)
     """
     local_dt = _parse_iso_to_local(iso_str)
-    return f"{local_dt.hour:02d}:{local_dt.minute:02d}"
+    return f"{local_dt.hour}:{local_dt.minute:02d}"
 
 
 def _format_reset_date(iso_str: str) -> str:
@@ -150,10 +146,10 @@ def _format_reset_date(iso_str: str) -> str:
         iso_str: ISO 8601形式の日時文字列
 
     Returns:
-        "M/D HH:MM" 形式の文字列(0埋めなし)
+        "M/D H:MM" 形式の文字列(時は0埋めなし)
     """
     local_dt = _parse_iso_to_local(iso_str)
-    return f"{local_dt.month}/{local_dt.day} {local_dt.hour:02d}:{local_dt.minute:02d}"
+    return f"{local_dt.month}/{local_dt.day} {local_dt.hour}:{local_dt.minute:02d}"
 
 
 def _get_oauth_token() -> str | None:
@@ -303,8 +299,8 @@ def _seg_project(data: dict[str, Any]) -> Segment | None:
     name = Path(cwd).name if cwd else "unknown"
     if not name:
         name = "unknown"
-    label = f"{_ICON_FOLDER} {name}"
-    return Segment(text=label, width=len(name) + 2)  # アイコン(1) + 空白(1) + 名前
+    label = _colorize(f"{_ICON_FOLDER} {name}", _Color.YELLOW)
+    return Segment(text=label)
 
 
 def _seg_branch(data: dict[str, Any]) -> Segment | None:
@@ -334,8 +330,8 @@ def _seg_branch(data: dict[str, Any]) -> Segment | None:
     except subprocess.TimeoutExpired, subprocess.SubprocessError, OSError:
         return None
 
-    label = f"{_ICON_BRANCH} {branch}"
-    return Segment(text=label, width=len(branch) + 2)
+    label = _colorize(f"{_ICON_BRANCH}{branch}", _Color.YELLOW)
+    return Segment(text=label)
 
 
 def _seg_model(data: dict[str, Any]) -> Segment | None:
@@ -363,13 +359,13 @@ def _seg_model(data: dict[str, Any]) -> Segment | None:
     # model_idからバージョン番号を抽出する
     # 例: "claude-opus-4-6" -> "4.6", "claude-sonnet-4-5-20250514" -> "4.5"
     version = _extract_version(model_id)
-    if version:
+    if version and version not in display_name:
         model_text = f"{display_name} {version}"
     else:
         model_text = display_name
 
     label = f"{_ICON_MODEL} {model_text}"
-    return Segment(text=label, width=len(model_text) + 2)
+    return Segment(text=label)
 
 
 def _extract_version(model_id: str) -> str:
@@ -437,7 +433,7 @@ def _seg_context(data: dict[str, Any]) -> Segment | None:
     colored_pct = _colorize(pct_str, color)
     label = f"{_ICON_CHART} {colored_pct}"
     # 表示幅: アイコン(1) + 空白(1) + パーセント文字列
-    return Segment(text=label, width=len(pct_str) + 2)
+    return Segment(text=label)
 
 
 def _seg_lines(data: dict[str, Any]) -> Segment | None:
@@ -459,11 +455,10 @@ def _seg_lines(data: dict[str, Any]) -> Segment | None:
     if added == 0 and removed == 0:
         return None
 
-    raw_str = f"+{added}/-{removed}"
     colored_add = _colorize(f"+{added}", _Color.GREEN)
     colored_del = _colorize(f"-{removed}", _Color.RED)
     label = f"{_ICON_PENCIL} {colored_add}/{colored_del}"
-    return Segment(text=label, width=len(raw_str) + 2)
+    return Segment(text=label)
 
 
 def _seg_rate_common(
@@ -508,9 +503,8 @@ def _seg_rate_common(
 
     pct_str = f"{int(pct_val)}%"
     colored_pct = _colorize(pct_str, color)
-    plain = f"{period_label} {pct_str} \u2190 {reset_str}"
-    label = f"{icon} {period_label} {colored_pct} \u2190 {reset_str}"
-    return Segment(text=label, width=len(plain) + 2)
+    label = f"{icon} {period_label} {colored_pct} {_ICON_RESET} {reset_str}"
+    return Segment(text=label)
 
 
 def _seg_rate_5h(data: dict[str, Any]) -> Segment | None:
@@ -534,35 +528,17 @@ def _render_line(segments: list[Segment]) -> str:
     Returns:
         セパレータで結合された文字列
     """
-    sep = _colorize(_SEPARATOR, _Color.DIM)
+    sep = _SEPARATOR
     return sep.join(s.text for s in segments)
 
 
-def _calc_line_width(segments: list[Segment]) -> int:
-    """セグメントリストの合計表示幅を計算する(ANSI除外)
-
-    Args:
-        segments: 幅を計算するSegmentリスト
-
-    Returns:
-        セパレータ込みの表示幅
-    """
-    if not segments:
-        return 0
-    total = sum(s.width for s in segments)
-    total += _SEPARATOR_WIDTH * (len(segments) - 1)
-    return total
-
-
-def _build_lines(data: dict[str, Any], terminal_width: int) -> list[str]:
+def _build_lines(data: dict[str, Any]) -> list[str]:
     """行定義に従ってステータスラインを構築する
 
-    overflow_indexが指定されている場合、1行に収まらなければ
-    その位置で分割して次行に押し出す
+    overflow_indexが指定されている場合は常にその位置で分割する
 
     Args:
         data: stdinから読み込んだJSON辞書(+ _usageキー)
-        terminal_width: ターミナルの表示幅
 
     Returns:
         表示用の文字列リスト(各要素が1行)
@@ -580,18 +556,13 @@ def _build_lines(data: dict[str, Any], terminal_width: int) -> list[str]:
         if not segments:
             continue
 
-        # 1行に収まるかチェックする
-        total_width = _calc_line_width(segments)
-
-        if total_width <= terminal_width or line_cfg.overflow_index is None:
-            # 収まる場合、またはオーバーフロー分割なしの場合は1行で出力
+        if line_cfg.overflow_index is None:
             output_lines.append(_render_line(segments))
         else:
             # overflow_indexで分割する
             idx = line_cfg.overflow_index
             # 実際のセグメント数に対してidxが有効かチェック
             if idx <= 0 or idx >= len(segments):
-                # 分割できない場合はそのまま1行で出力
                 output_lines.append(_render_line(segments))
             else:
                 first_part = segments[:idx]
@@ -643,9 +614,7 @@ def main() -> None:
     if usage is not None:
         data["_usage"] = usage
 
-    terminal_width = shutil.get_terminal_size((120, 24)).columns
-
-    lines = _build_lines(data, terminal_width)
+    lines = _build_lines(data)
     if lines:
         print("\n".join(lines))
 
