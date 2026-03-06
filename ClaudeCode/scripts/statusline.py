@@ -296,9 +296,7 @@ def _seg_project(data: dict[str, Any]) -> Segment | None:
         プロジェクト名のSegment
     """
     cwd = str(data.get("cwd", ""))
-    name = Path(cwd).name if cwd else "unknown"
-    if not name:
-        name = "unknown"
+    name = Path(cwd).name or "unknown"
     label = _colorize(f"{_ICON_FOLDER} {name}", _Color.YELLOW)
     return Segment(text=label)
 
