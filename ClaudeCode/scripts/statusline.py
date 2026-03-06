@@ -102,11 +102,11 @@ def _color_for_utilization(pct: float) -> _Color:
         pct: 利用率(0-100)
 
     Returns:
-        0-49%: GREEN, 50-79%: YELLOW, 80-100%: RED
+        0-59%: GREEN, 60-79%: YELLOW, 80-100%: RED
     """
     if pct >= 80:
         return _Color.RED
-    if pct >= 50:
+    if pct >= 60:
         return _Color.YELLOW
     return _Color.GREEN
 
