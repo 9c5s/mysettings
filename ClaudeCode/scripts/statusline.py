@@ -9,6 +9,7 @@ Claude Codeのステータスフックから呼び出され、ターミナル下
 プロジェクト情報やAPIレートリミット状況を表示する
 """
 
+# json.loads/dict.get由来のUnknown型が全関数に波及するため、ファイルレベルで抑制する
 # pyright: reportUnknownMemberType=false
 # pyright: reportUnknownArgumentType=false
 # pyright: reportUnknownVariableType=false
