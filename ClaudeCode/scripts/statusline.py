@@ -317,6 +317,19 @@ def _seg_branch(data: dict[str, Any]) -> Segment | None:
         branch = result.stdout.strip()
         if not branch:
             return None
+        if branch == "HEAD":
+            # Detached HEAD状態では短縮コミットハッシュを取得する
+            result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
+                capture_output=True,
+                text=True,
+                cwd=cwd or None,
+                timeout=3,
+                check=False,
+            )
+            branch = result.stdout.strip()
+            if not branch:
+                return None
     except subprocess.TimeoutExpired, subprocess.SubprocessError, OSError:
         return None
 
@@ -384,6 +397,8 @@ def _extract_version(model_id: str) -> str:
     found_digit = False
     for part in parts[1:]:
         if part.isdigit():
+            if len(part) >= 4:
+                break  # 日付文字列(20240229等)はバージョンではないためスキップ
             found_digit = True
             digit_parts.append(part)
             # メジャー.マイナーの2つまで取得する
@@ -415,7 +430,10 @@ def _seg_context(data: dict[str, Any]) -> Segment | None:
     if pct is None:
         return None
 
-    pct_val = float(pct)
+    try:
+        pct_val = float(pct)
+    except ValueError, TypeError:
+        return None
     pct_int = int(pct_val)
     color = _color_for_utilization(pct_val)
     pct_str = f"{pct_int}%"
@@ -439,8 +457,11 @@ def _seg_lines(data: dict[str, Any]) -> Segment | None:
     if not isinstance(cost, dict):
         return None
 
-    added = int(cost.get("total_lines_added", 0))
-    removed = int(cost.get("total_lines_removed", 0))
+    try:
+        added = int(cost.get("total_lines_added", 0))
+        removed = int(cost.get("total_lines_removed", 0))
+    except ValueError, TypeError:
+        return None
 
     if added == 0 and removed == 0:
         return None
