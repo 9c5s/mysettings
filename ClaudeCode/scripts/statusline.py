@@ -34,6 +34,7 @@ from urllib.request import Request, urlopen
 class _Color(IntEnum):
     """ANSIカラーコード"""
 
+    BLUE = 34
     GREEN = 32
     YELLOW = 33
     RED = 31
@@ -71,7 +72,7 @@ _API_URL = "https://api.anthropic.com/api/oauth/usage"
 _API_TIMEOUT = 5
 
 
-_ICON_FOLDER = "\uf07c"  # nf-fa-folder_open
+_ICON_FOLDER = "\uf07b"  # nf-fa-folder
 _ICON_BRANCH = "\ue725"  # nf-dev-git_branch
 _ICON_MODEL = "\U000f068c"  # nf-md-robot
 _ICON_CHART = "\uf080"  # nf-fa-bar_chart
@@ -292,7 +293,7 @@ def _seg_project(data: dict[str, Any]) -> Segment | None:
     """
     cwd = str(data.get("cwd", ""))
     name = Path(cwd).name or "unknown"
-    label = _colorize(f"{_ICON_FOLDER} {name}", _Color.YELLOW)
+    label = _colorize(f"{_ICON_FOLDER} {name}", _Color.BLUE)
     return Segment(text=label)
 
 
