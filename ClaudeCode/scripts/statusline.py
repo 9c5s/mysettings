@@ -523,14 +523,28 @@ def _seg_rate_common(
 
 
 def _seg_rate_5h(data: dict[str, Any]) -> Segment | None:
-    """5時間レートリミットセグメントを生成する"""
+    """5時間レートリミットセグメントを生成する
+
+    Args:
+        data: stdinから読み込んだJSON辞書
+
+    Returns:
+        "5h NN% <- reset_time"形式のSegment、データ不足時はNone
+    """
     return _seg_rate_common(
         data, "five_hour", "5h", _ICON_CLOCK, _format_reset_time_short
     )
 
 
 def _seg_rate_7d(data: dict[str, Any]) -> Segment | None:
-    """7日間レートリミットセグメントを生成する"""
+    """7日間レートリミットセグメントを生成する
+
+    Args:
+        data: stdinから読み込んだJSON辞書
+
+    Returns:
+        "7d NN% <- reset_time"形式のSegment、データ不足時はNone
+    """
     return _seg_rate_common(data, "seven_day", "7d", _ICON_CALENDAR, _format_reset_date)
 
 
