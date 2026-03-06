@@ -26,13 +26,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
-
-# ---------------------------------------------------------------------------
-# データ型
-# ---------------------------------------------------------------------------
 
 
 class _Color(IntEnum):
@@ -73,10 +69,6 @@ class _LineConfig:
     overflow_index: int | None = None
 
 
-# ---------------------------------------------------------------------------
-# 定数
-# ---------------------------------------------------------------------------
-
 _SEPARATOR = " \u2502 "  # " │ "
 _SEPARATOR_WIDTH = 3  # ANSIを除いた表示幅
 _CACHE_TTL = 360  # 秒
@@ -84,9 +76,6 @@ _CACHE_PATH = Path(tempfile.gettempdir()) / "claude-usage-cache.json"
 _API_URL = "https://api.anthropic.com/api/oauth/usage"
 _API_TIMEOUT = 5
 
-# ---------------------------------------------------------------------------
-# Nerd Fontsアイコン
-# ---------------------------------------------------------------------------
 
 _ICON_FOLDER = "\uf07c"  # nf-fa-folder_open
 _ICON_BRANCH = "\ue725"  # nf-dev-git_branch
@@ -95,11 +84,6 @@ _ICON_CHART = "\uf080"  # nf-fa-bar_chart
 _ICON_PENCIL = "\U000f03eb"  # nf-md-pencil (󰏫)
 _ICON_CLOCK = "\uf017"  # nf-fa-clock_o
 _ICON_CALENDAR = "\uf073"  # nf-fa-calendar
-
-
-# ---------------------------------------------------------------------------
-# ヘルパー関数
-# ---------------------------------------------------------------------------
 
 
 def _colorize(text: str, color: _Color) -> str:
@@ -129,11 +113,6 @@ def _color_for_utilization(pct: float) -> _Color:
     if pct >= 50:
         return _Color.YELLOW
     return _Color.GREEN
-
-
-# ---------------------------------------------------------------------------
-# 時刻フォーマット
-# ---------------------------------------------------------------------------
 
 
 def _parse_iso_to_local(iso_str: str) -> datetime:
@@ -175,11 +154,6 @@ def _format_reset_date(iso_str: str) -> str:
     """
     local_dt = _parse_iso_to_local(iso_str)
     return f"{local_dt.month}/{local_dt.day} {local_dt.hour:02d}:{local_dt.minute:02d}"
-
-
-# ---------------------------------------------------------------------------
-# OAuth認証情報のハイブリッド取得
-# ---------------------------------------------------------------------------
 
 
 def _get_oauth_token() -> str | None:
@@ -235,11 +209,6 @@ def _get_oauth_token() -> str | None:
             pass
 
     return None
-
-
-# ---------------------------------------------------------------------------
-# Usage APIクライアント + キャッシュ
-# ---------------------------------------------------------------------------
 
 
 def _fetch_usage(token: str) -> dict[str, Any]:
@@ -319,11 +288,6 @@ def _get_usage() -> dict[str, Any] | None:
         pass
 
     return data
-
-
-# ---------------------------------------------------------------------------
-# セグメント関数
-# ---------------------------------------------------------------------------
 
 
 def _seg_project(data: dict[str, Any]) -> Segment | None:
@@ -502,87 +466,63 @@ def _seg_lines(data: dict[str, Any]) -> Segment | None:
     return Segment(text=label, width=len(raw_str) + 2)
 
 
-def _seg_rate_5h(data: dict[str, Any]) -> Segment | None:
-    """5時間レートリミットセグメントを生成する
+def _seg_rate_common(
+    data: dict[str, Any],
+    usage_key: str,
+    period_label: str,
+    icon: str,
+    fmt_reset: Callable[[str], str],
+) -> Segment | None:
+    """レートリミットセグメントの共通生成ロジック
 
     Args:
         data: stdinから読み込んだJSON辞書
+        usage_key: usageデータ内のキー("five_hour" / "seven_day")
+        period_label: 表示用の期間ラベル("5h" / "7d")
+        icon: Nerd Fontsアイコン
+        fmt_reset: リセット時刻のフォーマット関数
 
     Returns:
-        "5h NN% <- HH:MM"形式のSegment
+        "{period_label} NN% <- reset_time"形式のSegment
     """
     usage = data.get("_usage")
     if not isinstance(usage, dict):
         return None
 
-    five_hour = usage.get("five_hour")
-    if not isinstance(five_hour, dict):
+    bucket = usage.get(usage_key)
+    if not isinstance(bucket, dict):
         return None
 
-    utilization = five_hour.get("utilization")
-    resets_at = five_hour.get("resets_at")
+    utilization = bucket.get("utilization")
+    resets_at = bucket.get("resets_at")
     if utilization is None or resets_at is None:
         return None
 
     pct_val = float(utilization)
-    pct_int = int(pct_val)
     color = _color_for_utilization(pct_val)
 
     try:
-        reset_str = _format_reset_time_short(str(resets_at))
+        reset_str = fmt_reset(str(resets_at))
     except ValueError, TypeError:
         return None
 
-    pct_str = f"{pct_int}%"
+    pct_str = f"{int(pct_val)}%"
     colored_pct = _colorize(pct_str, color)
-    # "\uf017 5h 42% <- 23:00" 形式
-    plain = f"5h {pct_str} \u2190 {reset_str}"
-    label = f"{_ICON_CLOCK} 5h {colored_pct} \u2190 {reset_str}"
+    plain = f"{period_label} {pct_str} \u2190 {reset_str}"
+    label = f"{icon} {period_label} {colored_pct} \u2190 {reset_str}"
     return Segment(text=label, width=len(plain) + 2)
+
+
+def _seg_rate_5h(data: dict[str, Any]) -> Segment | None:
+    """5時間レートリミットセグメントを生成する"""
+    return _seg_rate_common(
+        data, "five_hour", "5h", _ICON_CLOCK, _format_reset_time_short
+    )
 
 
 def _seg_rate_7d(data: dict[str, Any]) -> Segment | None:
-    """7日間レートリミットセグメントを生成する
-
-    Args:
-        data: stdinから読み込んだJSON辞書
-
-    Returns:
-        "7d NN% <- M/D HH:MM"形式のSegment
-    """
-    usage = data.get("_usage")
-    if not isinstance(usage, dict):
-        return None
-
-    seven_day = usage.get("seven_day")
-    if not isinstance(seven_day, dict):
-        return None
-
-    utilization = seven_day.get("utilization")
-    resets_at = seven_day.get("resets_at")
-    if utilization is None or resets_at is None:
-        return None
-
-    pct_val = float(utilization)
-    pct_int = int(pct_val)
-    color = _color_for_utilization(pct_val)
-
-    try:
-        reset_str = _format_reset_date(str(resets_at))
-    except ValueError, TypeError:
-        return None
-
-    pct_str = f"{pct_int}%"
-    colored_pct = _colorize(pct_str, color)
-    # "\uf073 7d 7% <- 3/9 18:00" 形式
-    plain = f"7d {pct_str} \u2190 {reset_str}"
-    label = f"{_ICON_CALENDAR} 7d {colored_pct} \u2190 {reset_str}"
-    return Segment(text=label, width=len(plain) + 2)
-
-
-# ---------------------------------------------------------------------------
-# レイアウトエンジン
-# ---------------------------------------------------------------------------
+    """7日間レートリミットセグメントを生成する"""
+    return _seg_rate_common(data, "seven_day", "7d", _ICON_CALENDAR, _format_reset_date)
 
 
 def _render_line(segments: list[Segment]) -> str:
@@ -664,10 +604,6 @@ def _build_lines(data: dict[str, Any], terminal_width: int) -> list[str]:
     return output_lines
 
 
-# ---------------------------------------------------------------------------
-# 行定義
-# ---------------------------------------------------------------------------
-
 _LINES = [
     _LineConfig(
         segment_fns=[_seg_project, _seg_branch, _seg_model, _seg_context, _seg_lines],
@@ -678,11 +614,6 @@ _LINES = [
         overflow_index=None,
     ),
 ]
-
-
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:
@@ -707,16 +638,14 @@ def main() -> None:
     if not isinstance(data, dict):
         return
 
-    typed_data = cast("dict[str, Any]", data)
-
     # レートリミット情報を取得してdataに格納する
     usage = _get_usage()
     if usage is not None:
-        typed_data["_usage"] = usage
+        data["_usage"] = usage
 
     terminal_width = shutil.get_terminal_size((120, 24)).columns
 
-    lines = _build_lines(typed_data, terminal_width)
+    lines = _build_lines(data, terminal_width)
     if lines:
         print("\n".join(lines))
 
