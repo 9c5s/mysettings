@@ -57,13 +57,11 @@ class _LineConfig:
 
     Attributes:
         segment_fns: セグメント生成関数のリスト
-        overflow_index: この位置以降を次行に押し出す分割点(Noneなら分割しない)
     """
 
     segment_fns: list[Callable[[dict[str, Any]], Segment | None]] = field(
         default_factory=list,
     )
-    overflow_index: int | None = None
 
 
 _SEPARATOR = " \u2502 "  # " │ "
@@ -449,7 +447,7 @@ def _seg_context(data: dict[str, Any]) -> Segment | None:
     return Segment(text=label)
 
 
-def _seg_lines(data: dict[str, Any]) -> Segment | None:
+def _seg_lines(data: dict[str, Any]) -> Segment | None:  # pyright: ignore[reportUnusedFunction] 現在は非表示だが将来の再利用のため保持
     """変更行数セグメントを生成する
 
     Args:
@@ -551,8 +549,6 @@ def _render_line(segments: list[Segment]) -> str:
 def _build_lines(data: dict[str, Any]) -> list[str]:
     """行定義に従ってステータスラインを構築する
 
-    overflow_indexが指定されている場合は常にその位置で分割する
-
     Args:
         data: stdinから読み込んだJSON辞書(+ _usageキー)
 
@@ -562,44 +558,21 @@ def _build_lines(data: dict[str, Any]) -> list[str]:
     output_lines: list[str] = []
 
     for line_cfg in _LINES:
-        # セグメントを生成する(Noneは除外)
         segments: list[Segment] = []
         for fn in line_cfg.segment_fns:
             seg = fn(data)
             if seg is not None:
                 segments.append(seg)
 
-        if not segments:
-            continue
-
-        if line_cfg.overflow_index is None:
+        if segments:
             output_lines.append(_render_line(segments))
-        else:
-            # overflow_indexで分割する
-            idx = line_cfg.overflow_index
-            # 実際のセグメント数に対してidxが有効かチェック
-            if idx <= 0 or idx >= len(segments):
-                output_lines.append(_render_line(segments))
-            else:
-                first_part = segments[:idx]
-                second_part = segments[idx:]
-                if first_part:
-                    output_lines.append(_render_line(first_part))
-                if second_part:
-                    output_lines.append(_render_line(second_part))
 
     return output_lines
 
 
 _LINES = [
-    _LineConfig(
-        segment_fns=[_seg_project, _seg_branch, _seg_model, _seg_context, _seg_lines],
-        overflow_index=2,  # model以降を次行に押し出す
-    ),
-    _LineConfig(
-        segment_fns=[_seg_rate_5h, _seg_rate_7d],
-        overflow_index=None,
-    ),
+    _LineConfig(segment_fns=[_seg_project, _seg_branch]),
+    _LineConfig(segment_fns=[_seg_model, _seg_context, _seg_rate_5h, _seg_rate_7d]),
 ]
 
 
