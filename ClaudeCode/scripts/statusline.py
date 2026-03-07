@@ -87,17 +87,30 @@ class _Icons:
 
 
 _ICONS_NERD = _Icons(
-    FOLDER="\uf07b",       # nf-fa-folder
-    BRANCH="\ue725",       # nf-dev-git_branch
-    MODEL="\U000f068c",    # nf-md-robot
-    CHART="\uf080",        # nf-fa-bar_chart
-    PENCIL="\U000f03eb",   # nf-md-pencil
-    CLOCK="\uf017",        # nf-fa-clock_o
-    CALENDAR="\uf073",     # nf-fa-calendar
-    RESET="\uf0e2",        # nf-fa-undo
+    FOLDER="\uf07b",  # nf-fa-folder
+    BRANCH="\ue725",  # nf-dev-git_branch
+    MODEL="\U000f068c",  # nf-md-robot
+    CHART="\uf080",  # nf-fa-bar_chart
+    PENCIL="\U000f03eb",  # nf-md-pencil
+    CLOCK="\uf017",  # nf-fa-clock_o
+    CALENDAR="\uf073",  # nf-fa-calendar
+    RESET="\uf0e2",  # nf-fa-undo
 )
 
 _icons: _Icons = _Icons()
+
+
+def _get_cwd(data: dict[str, Any]) -> str:
+    """stdinデータからカレントディレクトリを取得する
+
+    workspace.current_dirを優先し、フォールバックとしてcwdを使用する
+    """
+    workspace = data.get("workspace")
+    if isinstance(workspace, dict):
+        current_dir = workspace.get("current_dir")
+        if current_dir:
+            return str(current_dir)
+    return str(data.get("cwd", ""))
 
 
 def _colorize(text: str, color: _Color) -> str:
@@ -310,7 +323,7 @@ def _seg_project(data: dict[str, Any]) -> Segment | None:
     Returns:
         プロジェクト名のSegment
     """
-    cwd = str(data.get("cwd", ""))
+    cwd = _get_cwd(data)
     name = Path(cwd).name or "unknown"
     label = _colorize(f"{_icons.FOLDER} {name}", _Color.BLUE)
     return Segment(text=label)
@@ -325,7 +338,7 @@ def _seg_branch(data: dict[str, Any]) -> Segment | None:
     Returns:
         ブランチ名のSegment、取得失敗時はNone
     """
-    cwd = str(data.get("cwd", ""))
+    cwd = _get_cwd(data)
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],  # noqa: S607
