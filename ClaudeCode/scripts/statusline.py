@@ -195,6 +195,81 @@ def _get_currency_from_locale() -> str:
     return "USD"
 
 
+def _cache_key_matches(
+    cache_obj: dict[str, Any], cache_key: dict[str, str] | None
+) -> bool:
+    """キャッシュオブジェクトのキーが期待値と一致するか判定する"""
+    if not cache_key:
+        return True
+    return all(cache_obj.get(k) == v for k, v in cache_key.items())
+
+
+def _write_cache(cache_path: Path, cache_obj: dict[str, Any]) -> None:
+    """Atomic writeでキャッシュファイルを書き込む"""
+    with contextlib.suppress(OSError):
+        tmp_fd, tmp_name = tempfile.mkstemp(
+            dir=cache_path.parent, suffix=".tmp", prefix="claude-cache-"
+        )
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                json.dump(cache_obj, f)
+            Path(tmp_name).replace(cache_path)
+            cache_path.chmod(0o600)
+        except OSError:
+            with contextlib.suppress(OSError):
+                Path(tmp_name).unlink()
+
+
+def _cached_fetch(  # pyright: ignore[reportUnusedFunction] 後続タスクで使用予定
+    cache_path: Path,
+    ttl: int,
+    fetch_fn: Callable[[], Any],
+    cache_key: dict[str, str] | None = None,
+) -> Any | None:  # noqa: ANN401
+    """汎用キャッシュ付きデータ取得関数
+
+    キャッシュファイルからデータを読み取り、TTL内であれば返す
+    TTL切れまたはキャッシュなしの場合はfetch_fnを呼び出す
+    fetch_fn失敗時は期限切れキャッシュをフォールバックとして返す
+
+    Args:
+        cache_path: キャッシュファイルのパス
+        ttl: キャッシュの有効期間(秒)
+        fetch_fn: データ取得関数。成功時はデータを返し、失敗時は例外を送出する
+        cache_key: キャッシュ有効性の追加判定キー。不一致時はキャッシュを無効化する
+    """
+    now = datetime.now(UTC).timestamp()
+    expired_data: Any | None = None
+
+    # キャッシュチェック
+    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
+        cache_text = cache_path.read_text(encoding="utf-8")
+        cache_obj = json.loads(cache_text)
+
+        if _cache_key_matches(cache_obj, cache_key):
+            data = cache_obj.get("data")
+            if data is not None:
+                expired_data = data
+                if now - cache_obj.get("_cached_at", 0) < ttl:
+                    return data
+
+    # データ取得
+    try:
+        data = fetch_fn()
+        if data is None:
+            return expired_data
+    except Exception:  # noqa: BLE001
+        return expired_data
+
+    # キャッシュ保存
+    cache_obj = {"_cached_at": now, "data": data}
+    if cache_key:
+        cache_obj.update(cache_key)
+    _write_cache(cache_path, cache_obj)
+
+    return data
+
+
 def _get_exchange_rate(currency: str) -> float | None:
     """USD→指定通貨の為替レートを取得する(キャッシュ付き)
 
