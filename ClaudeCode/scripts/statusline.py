@@ -225,7 +225,7 @@ def _get_exchange_rate(currency: str) -> float | None:
     # API呼び出し
     try:
         url = _EXCHANGE_API_URL.format(currency=currency)
-        req = Request(url)  # noqa: S310
+        req = Request(url, headers={"User-Agent": "statusline/1.0"})  # noqa: S310
         with urlopen(req, timeout=_API_TIMEOUT) as resp:  # noqa: S310
             body = resp.read().decode("utf-8")
         rates = json.loads(body).get("rates", {})
