@@ -34,10 +34,10 @@ from urllib.request import Request, urlopen
 class _Color(IntEnum):
     """ANSIカラーコード"""
 
-    BLUE = 34
+    RED = 31
     GREEN = 32
     YELLOW = 33
-    RED = 31
+    BLUE = 34
     RESET = 0
 
 
@@ -338,7 +338,7 @@ def _seg_branch(data: dict[str, Any]) -> Segment | None:
     except subprocess.TimeoutExpired, subprocess.SubprocessError, OSError:
         return None
 
-    label = _colorize(f"{_ICON_BRANCH}{branch}", _Color.YELLOW)
+    label = _colorize(f"{_ICON_BRANCH} {branch}", _Color.YELLOW)
     return Segment(text=label)
 
 
