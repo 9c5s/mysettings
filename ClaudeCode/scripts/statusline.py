@@ -620,8 +620,7 @@ def main() -> None:
     --icons=nerd を指定するとNerd Fontsアイコンを使用する
     """
     global _icons  # noqa: PLW0603
-    if "--icons=nerd" in sys.argv:
-        _icons = _ICONS_NERD
+    _icons = _ICONS_NERD if "--icons=nerd" in sys.argv else _Icons()
 
     try:
         raw = sys.stdin.read()
