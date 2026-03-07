@@ -70,6 +70,8 @@ _CACHE_TTL = 360  # 秒
 _CACHE_PATH = Path(tempfile.gettempdir()) / "claude-usage-cache.json"
 _API_URL = "https://api.anthropic.com/api/oauth/usage"
 _API_TIMEOUT = 5
+_GIT_CACHE_TTL = 5  # 秒
+_GIT_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-git-cache.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -314,6 +316,86 @@ def _get_usage() -> dict[str, Any] | None:
     return data
 
 
+def _get_git_info(cwd: str) -> dict[str, Any] | None:
+    """Gitのブランチ名とリモートURLをキャッシュ付きで取得する
+
+    キャッシュのTTLは_GIT_CACHE_TTL秒である
+    cwdが変わった場合はキャッシュを無効化する
+    """
+    now = datetime.now(UTC).timestamp()
+
+    # キャッシュチェック
+    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
+        cache_text = _GIT_CACHE_PATH.read_text(encoding="utf-8")
+        cache_obj = json.loads(cache_text)
+        if (
+            cache_obj.get("cwd") == cwd
+            and now - cache_obj.get("_cached_at", 0) < _GIT_CACHE_TTL
+        ):
+            return cache_obj.get("data")
+
+    # Git情報を取得する
+    info: dict[str, Any] = {}
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            cwd=cwd or None,
+            timeout=3,
+            check=False,
+        )
+        branch = result.stdout.strip() if result.returncode == 0 else ""
+
+        if branch == "HEAD":
+            # Detached HEAD状態では短縮コミットハッシュを取得する
+            result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
+                capture_output=True,
+                text=True,
+                cwd=cwd or None,
+                timeout=3,
+                check=False,
+            )
+            branch = result.stdout.strip()
+
+        if not branch:
+            return None
+
+        info["branch"] = branch
+
+        # リモートURLを取得する
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            cwd=cwd or None,
+            timeout=3,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            info["remote_url"] = result.stdout.strip()
+
+    except subprocess.TimeoutExpired, subprocess.SubprocessError, OSError:
+        return None
+
+    # キャッシュ保存
+    cache_obj = {"_cached_at": now, "cwd": cwd, "data": info}
+    with contextlib.suppress(OSError):
+        tmp_fd, tmp_name = tempfile.mkstemp(
+            dir=_GIT_CACHE_PATH.parent, suffix=".tmp", prefix="claude-git-"
+        )
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                json.dump(cache_obj, f)
+            Path(tmp_name).replace(_GIT_CACHE_PATH)
+        except OSError:
+            with contextlib.suppress(OSError):
+                Path(tmp_name).unlink()
+
+    return info
+
+
 def _seg_project(data: dict[str, Any]) -> Segment | None:
     """プロジェクト名セグメントを生成する
 
@@ -338,37 +420,12 @@ def _seg_branch(data: dict[str, Any]) -> Segment | None:
     Returns:
         ブランチ名のSegment、取得失敗時はNone
     """
-    cwd = _get_cwd(data)
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],  # noqa: S607
-            capture_output=True,
-            text=True,
-            cwd=cwd or None,
-            timeout=3,
-            check=False,
-        )
-        if result.returncode != 0:
-            return None
-        branch = result.stdout.strip()
-        if not branch:
-            return None
-        if branch == "HEAD":
-            # Detached HEAD状態では短縮コミットハッシュを取得する
-            result = subprocess.run(
-                ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
-                capture_output=True,
-                text=True,
-                cwd=cwd or None,
-                timeout=3,
-                check=False,
-            )
-            branch = result.stdout.strip()
-            if not branch:
-                return None
-    except subprocess.TimeoutExpired, subprocess.SubprocessError, OSError:
+    git_info = data.get("_git")
+    if not isinstance(git_info, dict):
         return None
-
+    branch = git_info.get("branch")
+    if not branch:
+        return None
     label = _colorize(f"{_icons.BRANCH} {branch}", _Color.YELLOW)
     return Segment(text=label)
 
@@ -650,6 +707,12 @@ def main() -> None:
 
     if not isinstance(data, dict):
         return
+
+    # Git情報を取得してdataに格納する
+    cwd = _get_cwd(data)
+    git_info = _get_git_info(cwd) if cwd else None
+    if git_info is not None:
+        data["_git"] = git_info
 
     # レートリミット情報を取得してdataに格納する
     usage = _get_usage()
