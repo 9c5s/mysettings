@@ -226,3 +226,96 @@ class TestSegCost:
         """total_cost_usdがない場合はNone"""
         seg = statusline._seg_cost({"cost": {}})
         assert seg is None
+
+
+class TestCachedFetch:
+    """_cached_fetch のテスト"""
+
+    def test_returns_fresh_data_on_cache_miss(self, tmp_path):
+        """キャッシュミス時はfetch_fnからデータを取得する"""
+        cache_file = tmp_path / "test-cache.json"
+        result = statusline._cached_fetch(cache_file, 60, lambda: {"key": "value"})
+        assert result == {"key": "value"}
+
+    def test_returns_cached_data_within_ttl(self, tmp_path):
+        """TTL内のキャッシュを返す"""
+        cache_file = tmp_path / "test-cache.json"
+        cache_data = {"_cached_at": time.time(), "data": {"cached": True}}
+        cache_file.write_text(json.dumps(cache_data))
+        result = statusline._cached_fetch(cache_file, 60, lambda: {"fresh": True})
+        assert result == {"cached": True}
+
+    def test_refetches_on_expired_cache(self, tmp_path):
+        """TTL切れキャッシュは再取得する"""
+        cache_file = tmp_path / "test-cache.json"
+        cache_data = {"_cached_at": 0, "data": {"old": True}}
+        cache_file.write_text(json.dumps(cache_data))
+        result = statusline._cached_fetch(cache_file, 60, lambda: {"new": True})
+        assert result == {"new": True}
+
+    def test_returns_expired_cache_on_fetch_failure(self, tmp_path):
+        """fetch失敗時は期限切れキャッシュを返す"""
+        cache_file = tmp_path / "test-cache.json"
+        cache_data = {"_cached_at": 0, "data": {"expired": True}}
+        cache_file.write_text(json.dumps(cache_data))
+
+        def failing_fetch():
+            raise URLError("fail")
+
+        result = statusline._cached_fetch(cache_file, 60, failing_fetch)
+        assert result == {"expired": True}
+
+    def test_returns_none_on_fetch_failure_no_cache(self, tmp_path):
+        """fetch失敗かつキャッシュなしの場合はNoneを返す"""
+        cache_file = tmp_path / "nonexistent.json"
+
+        def failing_fetch():
+            raise URLError("fail")
+
+        result = statusline._cached_fetch(cache_file, 60, failing_fetch)
+        assert result is None
+
+    def test_cache_key_mismatch_refetches(self, tmp_path):
+        """cache_keyが異なる場合は再取得する"""
+        cache_file = tmp_path / "test-cache.json"
+        cache_data = {
+            "_cached_at": time.time(),
+            "data": {"old": True},
+            "currency": "EUR",
+        }
+        cache_file.write_text(json.dumps(cache_data))
+        result = statusline._cached_fetch(
+            cache_file, 60, lambda: {"new": True}, cache_key={"currency": "JPY"}
+        )
+        assert result == {"new": True}
+
+    def test_cache_key_match_returns_cache(self, tmp_path):
+        """cache_keyが一致する場合はキャッシュを返す"""
+        cache_file = tmp_path / "test-cache.json"
+        cache_data = {
+            "_cached_at": time.time(),
+            "data": {"cached": True},
+            "currency": "JPY",
+        }
+        cache_file.write_text(json.dumps(cache_data))
+        result = statusline._cached_fetch(
+            cache_file, 60, lambda: {"fresh": True}, cache_key={"currency": "JPY"}
+        )
+        assert result == {"cached": True}
+
+    def test_writes_cache_file(self, tmp_path):
+        """取得後にキャッシュファイルが書き込まれる"""
+        cache_file = tmp_path / "test-cache.json"
+        statusline._cached_fetch(cache_file, 60, lambda: {"written": True})
+        assert cache_file.exists()
+        data = json.loads(cache_file.read_text())
+        assert data["data"] == {"written": True}
+        assert "_cached_at" in data
+
+    def test_fetch_returning_none_returns_expired(self, tmp_path):
+        """fetch_fnがNoneを返した場合は期限切れキャッシュを返す"""
+        cache_file = tmp_path / "test-cache.json"
+        cache_data = {"_cached_at": 0, "data": {"expired": True}}
+        cache_file.write_text(json.dumps(cache_data))
+        result = statusline._cached_fetch(cache_file, 60, lambda: None)
+        assert result == {"expired": True}
