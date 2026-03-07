@@ -115,6 +115,30 @@ def _get_cwd(data: dict[str, Any]) -> str:
     return str(data.get("cwd", ""))
 
 
+def _osc8_link(url: str, text: str) -> str:
+    """OSC 8エスケープシーケンスでクリッカブルリンクを生成する
+
+    対応ターミナル(iTerm2, Kitty, WezTerm等)ではCtrl+クリックで開ける
+    非対応ターミナルでは通常テキストとして表示される
+    """
+    return f"\033]8;;{url}\a{text}\033]8;;\a"
+
+
+def _remote_to_https(remote_url: str) -> str | None:
+    """GitリモートURLをHTTPS URLに変換する
+
+    SSH形式(git@github.com:user/repo.git)とHTTPS形式の両方に対応する
+    """
+    url = remote_url.strip()
+    if url.startswith("git@"):
+        # git@github.com:user/repo.git -> https://github.com/user/repo
+        url = url.replace(":", "/", 1).replace("git@", "https://", 1)
+    url = url.removesuffix(".git")
+    if url.startswith("https://"):
+        return url
+    return None
+
+
 def _colorize(text: str, color: _Color) -> str:
     """テキストにANSIカラーエスケープを付与する
 
@@ -399,26 +423,31 @@ def _get_git_info(cwd: str) -> dict[str, Any] | None:
 def _seg_project(data: dict[str, Any]) -> Segment | None:
     """プロジェクト名セグメントを生成する
 
-    Args:
-        data: stdinから読み込んだJSON辞書
-
-    Returns:
-        プロジェクト名のSegment
+    GitリモートURLが取得できる場合はOSC 8クリッカブルリンクにする
     """
     cwd = _get_cwd(data)
     name = Path(cwd).name or "unknown"
-    label = _colorize(f"{_icons.FOLDER} {name}", _Color.BLUE)
+
+    # リモートURLからHTTPSリンクを生成する
+    git_info = data.get("_git")
+    repo_url = None
+    if isinstance(git_info, dict):
+        remote_url = git_info.get("remote_url", "")
+        if remote_url:
+            repo_url = _remote_to_https(remote_url)
+
+    display = f"{_icons.FOLDER} {name}"
+    if repo_url:
+        display = f"{_icons.FOLDER} {_osc8_link(repo_url, name)}"
+
+    label = _colorize(display, _Color.BLUE)
     return Segment(text=label)
 
 
 def _seg_branch(data: dict[str, Any]) -> Segment | None:
     """Gitブランチ名セグメントを生成する
 
-    Args:
-        data: stdinから読み込んだJSON辞書
-
-    Returns:
-        ブランチ名のSegment、取得失敗時はNone
+    GitリモートURLが取得できる場合はOSC 8クリッカブルリンクにする
     """
     git_info = data.get("_git")
     if not isinstance(git_info, dict):
@@ -426,7 +455,21 @@ def _seg_branch(data: dict[str, Any]) -> Segment | None:
     branch = git_info.get("branch")
     if not branch:
         return None
-    label = _colorize(f"{_icons.BRANCH} {branch}", _Color.YELLOW)
+
+    # リモートURLからブランチページのリンクを生成する
+    remote_url = git_info.get("remote_url", "")
+    branch_url = None
+    if remote_url:
+        repo_url = _remote_to_https(remote_url)
+        if repo_url:
+            branch_url = f"{repo_url}/tree/{branch}"
+
+    if branch_url:
+        display = f"{_icons.BRANCH} {_osc8_link(branch_url, branch)}"
+    else:
+        display = f"{_icons.BRANCH} {branch}"
+
+    label = _colorize(display, _Color.YELLOW)
     return Segment(text=label)
 
 
