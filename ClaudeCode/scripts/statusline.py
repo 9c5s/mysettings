@@ -73,6 +73,9 @@ _API_URL = "https://api.anthropic.com/api/oauth/usage"
 _API_TIMEOUT = 5
 _GIT_CACHE_TTL = 5  # 秒
 _GIT_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-git-cache.json"
+_EXCHANGE_CACHE_TTL = 86400  # 24時間
+_EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-exchange-cache.json"
+_EXCHANGE_API_URL = "https://api.frankfurter.app/latest?from=USD&to={currency}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +192,64 @@ def _get_currency_from_locale() -> str:  # pyright: ignore[reportUnusedFunction]
         country = parts[1].split(".")[0].upper()
         return _LOCALE_TO_CURRENCY.get(country, "USD")
     return "USD"
+
+
+def _get_exchange_rate(currency: str) -> float | None:  # pyright: ignore[reportUnusedFunction] 次のPRで_seg_costから呼び出す
+    """USD→指定通貨の為替レートを取得する(キャッシュ付き)
+
+    Args:
+        currency: 通貨コード(例: "JPY")
+
+    Returns:
+        為替レート、USDの場合や取得失敗時はNone
+    """
+    if currency == "USD":
+        return None
+
+    now = datetime.now(UTC).timestamp()
+    cached_rate: float | None = None
+
+    # キャッシュチェック
+    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
+        cache_text = _EXCHANGE_CACHE_PATH.read_text(encoding="utf-8")
+        cache_obj = json.loads(cache_text)
+        if cache_obj.get("currency") == currency:
+            cached_rate = cache_obj.get("rate")
+            if (
+                now - cache_obj.get("_cached_at", 0) < _EXCHANGE_CACHE_TTL
+                and cached_rate is not None
+            ):
+                return float(cached_rate)
+
+    # API呼び出し
+    try:
+        url = _EXCHANGE_API_URL.format(currency=currency)
+        req = Request(url)  # noqa: S310
+        with urlopen(req, timeout=_API_TIMEOUT) as resp:  # noqa: S310
+            body = resp.read().decode("utf-8")
+        rates = json.loads(body).get("rates", {})
+        rate = rates.get(currency)
+        if rate is None:
+            return float(cached_rate) if cached_rate is not None else None
+    except URLError, json.JSONDecodeError, OSError, TimeoutError:
+        return float(cached_rate) if cached_rate is not None else None
+
+    # atomic writeでキャッシュ保存
+    cache_obj = {"_cached_at": now, "currency": currency, "rate": rate}
+    with contextlib.suppress(OSError):
+        tmp_fd, tmp_name = tempfile.mkstemp(
+            dir=_EXCHANGE_CACHE_PATH.parent, suffix=".tmp", prefix="claude-exchange-"
+        )
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                json.dump(cache_obj, f)
+            Path(tmp_name).replace(_EXCHANGE_CACHE_PATH)
+            _EXCHANGE_CACHE_PATH.chmod(0o600)
+        except OSError:
+            with contextlib.suppress(OSError):
+                Path(tmp_name).unlink()
+
+    return float(rate)
 
 
 def _get_cwd(data: dict[str, Any]) -> str:

@@ -2,10 +2,19 @@
 
 # テストではプライベートメンバーへのアクセスが必要である
 # pyright: reportPrivateUsage=false
+# pyright: reportUnknownParameterType=false
+# pyright: reportMissingParameterType=false
+# pyright: reportUnknownVariableType=false
+# pyright: reportUnknownMemberType=false
+# pyright: reportUnknownArgumentType=false
+# pyright: reportUnknownLambdaType=false
 
+import json
 import sys
+import time
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+from urllib.error import URLError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import statusline
@@ -63,3 +72,81 @@ class TestCurrencyData:
 
     def test_locale_to_currency_has_us(self):
         assert statusline._LOCALE_TO_CURRENCY["US"] == "USD"
+
+
+class TestGetExchangeRate:
+    """_get_exchange_rate のテスト"""
+
+    def test_usd_returns_none(self):
+        """USDの場合は変換不要なのでNoneを返す"""
+        assert statusline._get_exchange_rate("USD") is None
+
+    def test_fetches_rate_from_api(self, tmp_path):
+        """APIからレートを取得できる"""
+        # 存在しないキャッシュファイルを指定してキャッシュミスを発生させる
+        cache_file = tmp_path / "nonexistent-cache.json"
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b'{"rates":{"JPY":150.5}}'
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = lambda s, *a: None
+
+        with (
+            patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", return_value=mock_resp),
+        ):
+            rate = statusline._get_exchange_rate("JPY")
+        assert rate == 150.5
+
+    def test_returns_cached_rate(self, tmp_path):
+        """有効なキャッシュからレートを返す"""
+        cache_file = tmp_path / "exchange-cache.json"
+        cache_data = {"_cached_at": time.time(), "currency": "JPY", "rate": 149.0}
+        cache_file.write_text(json.dumps(cache_data))
+
+        with patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file):
+            rate = statusline._get_exchange_rate("JPY")
+        assert rate == 149.0
+
+    def test_api_failure_returns_expired_cache(self, tmp_path):
+        """API失敗時は期限切れキャッシュを返す"""
+        cache_file = tmp_path / "exchange-cache.json"
+        cache_data = {"_cached_at": 0, "currency": "JPY", "rate": 148.0}
+        cache_file.write_text(json.dumps(cache_data))
+
+        with (
+            patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", side_effect=URLError("fail")),
+        ):
+            rate = statusline._get_exchange_rate("JPY")
+        assert rate == 148.0
+
+    def test_api_failure_no_cache_returns_none(self, tmp_path):
+        """API失敗かつキャッシュなしの場合はNoneを返す"""
+        # 存在しないキャッシュファイルを指定する
+        cache_file = tmp_path / "nonexistent-cache.json"
+
+        with (
+            patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", side_effect=URLError("fail")),
+        ):
+            rate = statusline._get_exchange_rate("JPY")
+        assert rate is None
+
+    def test_different_currency_invalidates_cache(self, tmp_path):
+        """キャッシュの通貨が異なる場合はAPIから取得する"""
+        cache_file = tmp_path / "exchange-cache.json"
+        cache_data = {"_cached_at": time.time(), "currency": "EUR", "rate": 0.92}
+        cache_file.write_text(json.dumps(cache_data))
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b'{"rates":{"JPY":150.0}}'
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = lambda s, *a: None
+
+        with (
+            patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", return_value=mock_resp),
+        ):
+            rate = statusline._get_exchange_rate("JPY")
+        assert rate == 150.0
