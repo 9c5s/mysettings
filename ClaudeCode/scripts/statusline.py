@@ -16,6 +16,7 @@ Claude Codeのステータスフックから呼び出され、ターミナル下
 
 import contextlib
 import json
+import locale
 import os
 import platform
 import subprocess
@@ -75,6 +76,72 @@ _GIT_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-git-cache.json"
 
 
 @dataclass(frozen=True, slots=True)
+class _CurrencyInfo:
+    """通貨のフォーマット情報"""
+
+    symbol: str
+    decimals: int
+
+
+_CURRENCIES: dict[str, _CurrencyInfo] = {
+    "USD": _CurrencyInfo(symbol="$", decimals=2),
+    "EUR": _CurrencyInfo(symbol="\u20ac", decimals=2),
+    "GBP": _CurrencyInfo(symbol="\u00a3", decimals=2),
+    "JPY": _CurrencyInfo(symbol="\u00a5", decimals=0),
+    "CNY": _CurrencyInfo(symbol="\u00a5", decimals=2),
+    "KRW": _CurrencyInfo(symbol="\u20a9", decimals=0),
+    "INR": _CurrencyInfo(symbol="\u20b9", decimals=2),
+    "CAD": _CurrencyInfo(symbol="C$", decimals=2),
+    "AUD": _CurrencyInfo(symbol="A$", decimals=2),
+    "CHF": _CurrencyInfo(symbol="CHF", decimals=2),
+    "BRL": _CurrencyInfo(symbol="R$", decimals=2),
+    "SEK": _CurrencyInfo(symbol="kr", decimals=2),
+    "NOK": _CurrencyInfo(symbol="kr", decimals=2),
+    "DKK": _CurrencyInfo(symbol="kr", decimals=2),
+    "PLN": _CurrencyInfo(symbol="z\u0142", decimals=2),
+    "CZK": _CurrencyInfo(symbol="K\u010d", decimals=2),
+    "TWD": _CurrencyInfo(symbol="NT$", decimals=0),
+    "SGD": _CurrencyInfo(symbol="S$", decimals=2),
+    "HKD": _CurrencyInfo(symbol="HK$", decimals=2),
+    "MXN": _CurrencyInfo(symbol="MX$", decimals=2),
+}
+
+_LOCALE_TO_CURRENCY: dict[str, str] = {
+    "JP": "JPY",
+    "US": "USD",
+    "GB": "GBP",
+    "DE": "EUR",
+    "FR": "EUR",
+    "IT": "EUR",
+    "ES": "EUR",
+    "NL": "EUR",
+    "BE": "EUR",
+    "AT": "EUR",
+    "FI": "EUR",
+    "IE": "EUR",
+    "PT": "EUR",
+    "GR": "EUR",
+    "LU": "EUR",
+    "CN": "CNY",
+    "KR": "KRW",
+    "IN": "INR",
+    "CA": "CAD",
+    "AU": "AUD",
+    "CH": "CHF",
+    "BR": "BRL",
+    "SE": "SEK",
+    "NO": "NOK",
+    "DK": "DKK",
+    "PL": "PLN",
+    "CZ": "CZK",
+    "TW": "TWD",
+    "SG": "SGD",
+    "HK": "HKD",
+    "MX": "MXN",
+}
+
+
+@dataclass(frozen=True, slots=True)
 class _Icons:
     """アイコンセットの定義"""
 
@@ -102,6 +169,26 @@ _ICONS_NERD = _Icons(
 )
 
 _icons: _Icons = _Icons()
+
+
+def _get_currency_from_locale() -> str:  # pyright: ignore[reportUnusedFunction] 次のPRで_seg_costから呼び出す
+    """システムロケールから通貨コードを判定する
+
+    ロケール文字列から国コードを抽出し、対応する通貨コードを返す
+    判定できない場合はUSDを返す
+    """
+    try:
+        loc, _ = locale.getlocale()
+    except ValueError:
+        return "USD"
+    if not loc:
+        return "USD"
+    # "ja_JP" -> "JP", "en_US" -> "US"
+    parts = loc.split("_")
+    if len(parts) >= 2:
+        country = parts[1].split(".")[0].upper()
+        return _LOCALE_TO_CURRENCY.get(country, "USD")
+    return "USD"
 
 
 def _get_cwd(data: dict[str, Any]) -> str:
