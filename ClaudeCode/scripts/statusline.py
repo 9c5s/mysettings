@@ -86,6 +86,7 @@ class _Icons:
     CLOCK: str = "⏰"
     CALENDAR: str = "📅"
     RESET: str = "🔁"
+    MONEY: str = "💰"
 
 
 _ICONS_NERD = _Icons(
@@ -97,6 +98,7 @@ _ICONS_NERD = _Icons(
     CLOCK="\uf017",  # nf-fa-clock_o
     CALENDAR="\uf073",  # nf-fa-calendar
     RESET="\uf0e2",  # nf-fa-undo
+    MONEY="\U000f01f5",  # nf-md-currency_usd
 )
 
 _icons: _Icons = _Icons()
@@ -682,6 +684,25 @@ def _seg_rate_7d(data: dict[str, Any]) -> Segment | None:
     )
 
 
+def _seg_cost(data: dict[str, Any]) -> Segment | None:
+    """セッションコストセグメントを生成する"""
+    cost = data.get("cost")
+    if not isinstance(cost, dict):
+        return None
+
+    total_cost = cost.get("total_cost_usd")
+    if total_cost is None:
+        return None
+
+    try:
+        cost_val = float(total_cost)
+    except ValueError, TypeError:
+        return None
+
+    label = f"{_icons.MONEY} ${cost_val:.2f}"
+    return Segment(text=label)
+
+
 def _render_line(segments: list[Segment]) -> str:
     """セグメントのリストをセパレータで結合して1行にする
 
@@ -722,6 +743,7 @@ def _build_lines(data: dict[str, Any]) -> list[str]:
 _LINES = [
     _LineConfig(segment_fns=[_seg_project, _seg_branch]),
     _LineConfig(segment_fns=[_seg_model, _seg_context, _seg_rate_5h, _seg_rate_7d]),
+    _LineConfig(segment_fns=[_seg_cost]),
 ]
 
 
