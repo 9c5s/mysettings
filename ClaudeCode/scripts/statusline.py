@@ -72,14 +72,35 @@ _API_URL = "https://api.anthropic.com/api/oauth/usage"
 _API_TIMEOUT = 5
 
 
-_ICON_FOLDER = "\uf07b"  # nf-fa-folder
-_ICON_BRANCH = "\ue725"  # nf-dev-git_branch
-_ICON_MODEL = "\U000f068c"  # nf-md-robot
-_ICON_CHART = "\uf080"  # nf-fa-bar_chart
-_ICON_PENCIL = "\U000f03eb"  # nf-md-pencil
-_ICON_CLOCK = "\uf017"  # nf-fa-clock_o
-_ICON_CALENDAR = "\uf073"  # nf-fa-calendar
-_ICON_RESET = "\uf0e2"  # nf-fa-undo
+@dataclass(frozen=True, slots=True)
+class _Icons:
+    """アイコンセットの定義
+
+    デフォルト値はNerd Fontsアイコンである
+    """
+
+    FOLDER: str = "\uf07b"  # nf-fa-folder
+    BRANCH: str = "\ue725"  # nf-dev-git_branch
+    MODEL: str = "\U000f068c"  # nf-md-robot
+    CHART: str = "\uf080"  # nf-fa-bar_chart
+    PENCIL: str = "\U000f03eb"  # nf-md-pencil
+    CLOCK: str = "\uf017"  # nf-fa-clock_o
+    CALENDAR: str = "\uf073"  # nf-fa-calendar
+    RESET: str = "\uf0e2"  # nf-fa-undo
+
+
+_ICONS_EMOJI = _Icons(
+    FOLDER="📁",
+    BRANCH="🔀",
+    MODEL="🤖",
+    CHART="📊",
+    PENCIL="✏️",
+    CLOCK="⏰",
+    CALENDAR="📅",
+    RESET="🔁",
+)
+
+_icons: _Icons = _ICONS_EMOJI
 
 
 def _colorize(text: str, color: _Color) -> str:
@@ -294,7 +315,7 @@ def _seg_project(data: dict[str, Any]) -> Segment | None:
     """
     cwd = str(data.get("cwd", ""))
     name = Path(cwd).name or "unknown"
-    label = _colorize(f"{_ICON_FOLDER} {name}", _Color.BLUE)
+    label = _colorize(f"{_icons.FOLDER} {name}", _Color.BLUE)
     return Segment(text=label)
 
 
@@ -338,7 +359,7 @@ def _seg_branch(data: dict[str, Any]) -> Segment | None:
     except subprocess.TimeoutExpired, subprocess.SubprocessError, OSError:
         return None
 
-    label = _colorize(f"{_ICON_BRANCH} {branch}", _Color.YELLOW)
+    label = _colorize(f"{_icons.BRANCH} {branch}", _Color.YELLOW)
     return Segment(text=label)
 
 
@@ -372,7 +393,7 @@ def _seg_model(data: dict[str, Any]) -> Segment | None:
     else:
         model_text = display_name
 
-    label = f"{_ICON_MODEL} {model_text}"
+    label = f"{_icons.MODEL} {model_text}"
     return Segment(text=label)
 
 
@@ -444,7 +465,7 @@ def _seg_context(data: dict[str, Any]) -> Segment | None:
     pct_str = f"{pct_int}%"
 
     colored_pct = _colorize(pct_str, color)
-    label = f"{_ICON_CHART} {colored_pct}"
+    label = f"{_icons.CHART} {colored_pct}"
     # 表示幅: アイコン(1) + 空白(1) + パーセント文字列
     return Segment(text=label)
 
@@ -473,7 +494,7 @@ def _seg_lines(data: dict[str, Any]) -> Segment | None:  # pyright: ignore[repor
 
     colored_add = _colorize(f"+{added}", _Color.GREEN)
     colored_del = _colorize(f"-{removed}", _Color.RED)
-    label = f"{_ICON_PENCIL} {colored_add}/{colored_del}"
+    label = f"{_icons.PENCIL} {colored_add}/{colored_del}"
     return Segment(text=label)
 
 
@@ -519,7 +540,7 @@ def _seg_rate_common(
 
     pct_str = f"{int(pct_val)}%"
     colored_pct = _colorize(pct_str, color)
-    label = f"{icon} {period_label} {colored_pct} {_ICON_RESET} {reset_str}"
+    label = f"{icon} {period_label} {colored_pct} {_icons.RESET} {reset_str}"
     return Segment(text=label)
 
 
@@ -533,7 +554,7 @@ def _seg_rate_5h(data: dict[str, Any]) -> Segment | None:
         "5h NN% <- reset_time"形式のSegment、データ不足時はNone
     """
     return _seg_rate_common(
-        data, "five_hour", "5h", _ICON_CLOCK, _format_reset_time_short
+        data, "five_hour", "5h", _icons.CLOCK, _format_reset_time_short
     )
 
 
@@ -546,7 +567,9 @@ def _seg_rate_7d(data: dict[str, Any]) -> Segment | None:
     Returns:
         "7d NN% <- reset_time"形式のSegment、データ不足時はNone
     """
-    return _seg_rate_common(data, "seven_day", "7d", _ICON_CALENDAR, _format_reset_date)
+    return _seg_rate_common(
+        data, "seven_day", "7d", _icons.CALENDAR, _format_reset_date
+    )
 
 
 def _render_line(segments: list[Segment]) -> str:
@@ -597,7 +620,12 @@ def main() -> None:
 
     Claude Codeのstatuslineフックから呼び出されることを想定する
     stdinにはプロジェクト情報やモデル情報を含むJSONが渡される
+    --icons=nerd を指定するとNerd Fontsアイコンを使用する
     """
+    global _icons  # noqa: PLW0603
+    if "--icons=nerd" in sys.argv:
+        _icons = _Icons()
+
     try:
         raw = sys.stdin.read()
     except OSError, UnicodeDecodeError:
