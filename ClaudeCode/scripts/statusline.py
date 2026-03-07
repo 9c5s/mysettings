@@ -172,9 +172,10 @@ _ICONS_NERD = _Icons(
 )
 
 _icons: _Icons = _Icons()
+_currency: str = "USD"
 
 
-def _get_currency_from_locale() -> str:  # pyright: ignore[reportUnusedFunction] 次のPRで_seg_costから呼び出す
+def _get_currency_from_locale() -> str:
     """システムロケールから通貨コードを判定する
 
     ロケール文字列から国コードを抽出し、対応する通貨コードを返す
@@ -194,7 +195,7 @@ def _get_currency_from_locale() -> str:  # pyright: ignore[reportUnusedFunction]
     return "USD"
 
 
-def _get_exchange_rate(currency: str) -> float | None:  # pyright: ignore[reportUnusedFunction] 次のPRで_seg_costから呼び出す
+def _get_exchange_rate(currency: str) -> float | None:
     """USD→指定通貨の為替レートを取得する(キャッシュ付き)
 
     Args:
@@ -832,6 +833,27 @@ def _seg_rate_7d(data: dict[str, Any]) -> Segment | None:
     )
 
 
+def _format_cost(cost_usd: float) -> str:
+    """コスト値を現在の通貨設定でフォーマットする
+
+    _currencyがUSDの場合はそのまま表示する
+    為替レート取得失敗時はUSDにフォールバックする
+    """
+    if _currency == "USD":
+        return f"${cost_usd:.2f}"
+
+    rate = _get_exchange_rate(_currency)
+    if rate is None:
+        return f"${cost_usd:.2f}"
+
+    info = _CURRENCIES.get(_currency)
+    if info is None:
+        return f"${cost_usd:.2f}"
+
+    converted = cost_usd * rate
+    return f"{info.symbol}{converted:.{info.decimals}f}"
+
+
 def _seg_cost(data: dict[str, Any]) -> Segment | None:
     """セッションコストセグメントを生成する"""
     cost = data.get("cost")
@@ -847,7 +869,7 @@ def _seg_cost(data: dict[str, Any]) -> Segment | None:
     except ValueError, TypeError:
         return None
 
-    label = f"{_icons.MONEY} ${cost_val:.2f}"
+    label = f"{_icons.MONEY} {_format_cost(cost_val)}"
     return Segment(text=label)
 
 
@@ -902,8 +924,15 @@ def main() -> None:
     stdinにはプロジェクト情報やモデル情報を含むJSONが渡される
     --icons=nerd を指定するとNerd Fontsアイコンを使用する
     """
-    global _icons  # noqa: PLW0603
+    global _icons, _currency  # noqa: PLW0603
     _icons = _ICONS_NERD if "--icons=nerd" in sys.argv else _Icons()
+
+    # --currency=XXX の解析
+    _currency = _get_currency_from_locale()
+    for arg in sys.argv:
+        if arg.startswith("--currency="):
+            _currency = arg.split("=", 1)[1].upper()
+            break
 
     try:
         raw = sys.stdin.read()

@@ -150,3 +150,79 @@ class TestGetExchangeRate:
         ):
             rate = statusline._get_exchange_rate("JPY")
         assert rate == 150.0
+
+
+class TestFormatCost:
+    """_format_cost のテスト"""
+
+    def test_usd_display(self):
+        """USDの場合は$表示"""
+        with patch.object(statusline, "_currency", "USD"):
+            assert statusline._format_cost(1.23) == "$1.23"
+
+    def test_jpy_display(self):
+        """JPYの場合は¥表示(小数なし)"""
+        with (
+            patch.object(statusline, "_currency", "JPY"),
+            patch("statusline._get_exchange_rate", return_value=150.0),
+        ):
+            # 1.23 * 150.0 = 184.5 -> :.0fの偶数丸めで184
+            assert statusline._format_cost(1.23) == "¥184"
+
+    def test_eur_display(self):
+        """EURの場合はユーロ表示(小数2桁)"""
+        with (
+            patch.object(statusline, "_currency", "EUR"),
+            patch("statusline._get_exchange_rate", return_value=0.92),
+        ):
+            assert statusline._format_cost(1.00) == "€0.92"
+
+    def test_exchange_rate_failure_falls_back_to_usd(self):
+        """為替レート取得失敗時はUSDフォールバック"""
+        with (
+            patch.object(statusline, "_currency", "JPY"),
+            patch("statusline._get_exchange_rate", return_value=None),
+        ):
+            assert statusline._format_cost(1.23) == "$1.23"
+
+    def test_unknown_currency_falls_back_to_usd(self):
+        """_CURRENCIESに存在しない通貨はUSDフォールバック"""
+        with (
+            patch.object(statusline, "_currency", "XYZ"),
+            patch("statusline._get_exchange_rate", return_value=1.5),
+        ):
+            assert statusline._format_cost(1.23) == "$1.23"
+
+
+class TestSegCost:
+    """_seg_cost のテスト"""
+
+    def test_returns_segment_with_cost(self):
+        """コストデータがある場合はSegmentを返す"""
+        with patch.object(statusline, "_currency", "USD"):
+            data = {"cost": {"total_cost_usd": 1.23}}
+            seg = statusline._seg_cost(data)
+            assert seg is not None
+            assert "$1.23" in seg.text
+
+    def test_jpy_cost_display(self):
+        """JPYの場合は¥表示"""
+        with (
+            patch.object(statusline, "_currency", "JPY"),
+            patch("statusline._get_exchange_rate", return_value=150.0),
+        ):
+            data = {"cost": {"total_cost_usd": 1.23}}
+            seg = statusline._seg_cost(data)
+            assert seg is not None
+            # 1.23 * 150.0 = 184.5 -> :.0fの偶数丸めで184
+            assert "¥184" in seg.text
+
+    def test_no_cost_data_returns_none(self):
+        """コストデータがない場合はNone"""
+        seg = statusline._seg_cost({})
+        assert seg is None
+
+    def test_no_total_cost_returns_none(self):
+        """total_cost_usdがない場合はNone"""
+        seg = statusline._seg_cost({"cost": {}})
+        assert seg is None
