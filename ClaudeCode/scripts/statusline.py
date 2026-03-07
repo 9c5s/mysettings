@@ -74,33 +74,30 @@ _API_TIMEOUT = 5
 
 @dataclass(frozen=True, slots=True)
 class _Icons:
-    """アイコンセットの定義
+    """アイコンセットの定義"""
 
-    デフォルト値はNerd Fontsアイコンである
-    """
-
-    FOLDER: str = "\uf07b"  # nf-fa-folder
-    BRANCH: str = "\ue725"  # nf-dev-git_branch
-    MODEL: str = "\U000f068c"  # nf-md-robot
-    CHART: str = "\uf080"  # nf-fa-bar_chart
-    PENCIL: str = "\U000f03eb"  # nf-md-pencil
-    CLOCK: str = "\uf017"  # nf-fa-clock_o
-    CALENDAR: str = "\uf073"  # nf-fa-calendar
-    RESET: str = "\uf0e2"  # nf-fa-undo
+    FOLDER: str = "📁"
+    BRANCH: str = "🔀"
+    MODEL: str = "🤖"
+    CHART: str = "📊"
+    PENCIL: str = "✏️"
+    CLOCK: str = "⏰"
+    CALENDAR: str = "📅"
+    RESET: str = "🔁"
 
 
-_ICONS_EMOJI = _Icons(
-    FOLDER="📁",
-    BRANCH="🔀",
-    MODEL="🤖",
-    CHART="📊",
-    PENCIL="✏️",
-    CLOCK="⏰",
-    CALENDAR="📅",
-    RESET="🔁",
+_ICONS_NERD = _Icons(
+    FOLDER="\uf07b",       # nf-fa-folder
+    BRANCH="\ue725",       # nf-dev-git_branch
+    MODEL="\U000f068c",    # nf-md-robot
+    CHART="\uf080",        # nf-fa-bar_chart
+    PENCIL="\U000f03eb",   # nf-md-pencil
+    CLOCK="\uf017",        # nf-fa-clock_o
+    CALENDAR="\uf073",     # nf-fa-calendar
+    RESET="\uf0e2",        # nf-fa-undo
 )
 
-_icons: _Icons = _ICONS_EMOJI
+_icons: _Icons = _Icons()
 
 
 def _colorize(text: str, color: _Color) -> str:
@@ -624,7 +621,7 @@ def main() -> None:
     """
     global _icons  # noqa: PLW0603
     if "--icons=nerd" in sys.argv:
-        _icons = _Icons()
+        _icons = _ICONS_NERD
 
     try:
         raw = sys.stdin.read()
