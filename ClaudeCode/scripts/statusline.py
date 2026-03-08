@@ -76,6 +76,9 @@ _GIT_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-git-cache.json"
 _EXCHANGE_CACHE_TTL = 86400  # 24時間
 _EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-exchange-cache.json"
 _SESSION_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-session-cost.json"
+_PRICING_CACHE_TTL = 86400  # 24時間
+_PRICING_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-pricing-cache.json"
+_PRICING_API_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
 _EXCHANGE_API_URL = "https://api.frankfurter.app/latest?from=USD&to={currency}"
 _CURRENCIES_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-currencies-cache.json"
 _CURRENCIES_API_URL = "https://api.frankfurter.app/currencies"
@@ -346,6 +349,36 @@ def _get_supported_currencies() -> list[str] | None:
         return sorted(json.loads(body).keys())
 
     return _cached_fetch(_CURRENCIES_CACHE_PATH, _EXCHANGE_CACHE_TTL, fetch)
+
+
+_PRICING_FIELDS = (
+    "input_cost_per_token",
+    "output_cost_per_token",
+    "cache_creation_input_token_cost",
+    "cache_read_input_token_cost",
+)
+
+
+def _get_model_pricing() -> dict[str, Any] | None:  # pyright: ignore[reportUnusedFunction] Task 3で使用する
+    """LiteLLMの料金データを取得しClaudeモデルのみフィルタする(キャッシュ付き)
+
+    各モデルからinput/output/cache_write/cache_readの単価を抽出する
+    TTLは_PRICING_CACHE_TTL秒(1日)である
+    """
+
+    def fetch() -> dict[str, Any]:
+        req = Request(_PRICING_API_URL, headers={"User-Agent": "statusline/1.0"})
+        with urlopen(req, timeout=_API_TIMEOUT) as resp:  # noqa: S310
+            body = resp.read().decode("utf-8")
+        all_models = json.loads(body)
+        filtered: dict[str, Any] = {}
+        for name, info in all_models.items():
+            if "claude" not in name or not isinstance(info, dict):
+                continue
+            filtered[name] = {k: info[k] for k in _PRICING_FIELDS if k in info}
+        return filtered
+
+    return _cached_fetch(_PRICING_CACHE_PATH, _PRICING_CACHE_TTL, fetch)
 
 
 def _get_cwd(data: dict[str, Any]) -> str:
