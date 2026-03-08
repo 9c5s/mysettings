@@ -895,7 +895,7 @@ def _seg_context(data: dict[str, Any]) -> Segment | None:
     return Segment(text=label)
 
 
-def _seg_lines(data: dict[str, Any]) -> Segment | None:  # pyright: ignore[reportUnusedFunction] 現在は非表示だが将来の再利用のため保持
+def _seg_lines(data: dict[str, Any]) -> Segment | None:
     """変更行数セグメントを生成する
 
     Args:
@@ -1099,7 +1099,7 @@ def _build_lines(data: dict[str, Any]) -> list[str]:
     """
     output_lines: list[str] = []
 
-    for line_cfg in _LINES:
+    for line_cfg in _parse_segments(_DEFAULT_SEGMENTS):
         segments: list[Segment] = []
         for fn in line_cfg.segment_fns:
             seg = fn(data)
@@ -1112,11 +1112,46 @@ def _build_lines(data: dict[str, Any]) -> list[str]:
     return output_lines
 
 
-_LINES = [
-    _LineConfig(segment_fns=[_seg_project, _seg_branch]),
-    _LineConfig(segment_fns=[_seg_model, _seg_context, _seg_rate_5h, _seg_rate_7d]),
-    _LineConfig(segment_fns=[_seg_session_cost, _seg_daily_cost]),
-]
+_SEGMENT_REGISTRY: dict[str, Callable[[dict[str, Any]], Segment | None]] = {
+    "project": _seg_project,
+    "branch": _seg_branch,
+    "model": _seg_model,
+    "context": _seg_context,
+    "lines": _seg_lines,
+    "rate_5h": _seg_rate_5h,
+    "rate_7d": _seg_rate_7d,
+    "session_cost": _seg_session_cost,
+    "daily_cost": _seg_daily_cost,
+}
+
+_DEFAULT_SEGMENTS = (
+    "project,branch|model,context,rate_5h,rate_7d|session_cost,daily_cost"
+)
+
+
+def _parse_segments(segments_str: str) -> list[_LineConfig]:
+    """セグメント構成文字列をパースしてLineConfigリストを生成する
+
+    Args:
+        segments_str: "seg1,seg2|seg3,seg4" 形式の文字列
+
+    Returns:
+        各行のLineConfigリスト。空行は除外する
+    """
+    if not segments_str.strip():
+        return []
+
+    result: list[_LineConfig] = []
+    for line_str in segments_str.split("|"):
+        fns: list[Callable[[dict[str, Any]], Segment | None]] = []
+        for raw_name in line_str.split(","):
+            name = raw_name.strip()
+            fn = _SEGMENT_REGISTRY.get(name)
+            if fn is not None:
+                fns.append(fn)
+        if fns:
+            result.append(_LineConfig(segment_fns=fns))
+    return result
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
