@@ -202,6 +202,7 @@ def _get_currency_from_locale() -> str:
     """システムロケールから通貨コードを判定する
 
     ロケール文字列から国コードを抽出し、対応する通貨コードを返す
+    POSIX形式(ja_JP)とWindowsフルネーム形式(Japanese_Japan)の両方に対応する
     判定できない場合はUSDを返す
     """
     try:
@@ -210,12 +211,22 @@ def _get_currency_from_locale() -> str:
         return "USD"
     if not loc:
         return "USD"
-    # "ja_JP" -> "JP", "en_US" -> "US"
     parts = loc.split("_")
-    if len(parts) >= 2:
-        country = parts[1].split(".")[0].upper()
-        return _LOCALE_TO_CURRENCY.get(country, "USD")
-    return "USD"
+    if len(parts) < 2:
+        return "USD"
+    # POSIX形式: "ja_JP" -> "JP", "en_US" -> "US"
+    country = parts[1].split(".")[0].upper()
+    currency = _LOCALE_TO_CURRENCY.get(country)
+    if not currency:
+        # Windowsフルネーム形式のフォールバック:
+        # 言語名からlocale_aliasでPOSIXロケールを推定する
+        # 例: "Japanese" -> "ja_JP.eucJP" -> "JP"
+        alias = locale.locale_alias.get(parts[0].lower(), "")
+        alias_parts = alias.split("_")
+        if len(alias_parts) >= 2:
+            country = alias_parts[1].split(".")[0].upper()
+        currency = _LOCALE_TO_CURRENCY.get(country)
+    return currency or "USD"
 
 
 def _cache_key_matches(
