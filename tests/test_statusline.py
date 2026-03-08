@@ -631,6 +631,30 @@ class TestParseArgs:
         assert args.icons == "nerd"
         assert args.currency == "EUR"
 
+    def test_segments_default(self) -> None:
+        """引数なしの場合はデフォルトのセグメント構成"""
+        args = statusline._parse_args([])
+        assert args.segments == statusline._DEFAULT_SEGMENTS
+
+    def test_segments_custom(self) -> None:
+        """--segments でカスタム構成を指定"""
+        args = statusline._parse_args(["--segments", "project,model|rate_5h"])
+        assert args.segments == "project,model|rate_5h"
+
+    def test_segments_with_other_args(self) -> None:
+        """--segments と他の引数を組み合わせ"""
+        args = statusline._parse_args([
+            "--icons",
+            "nerd",
+            "--segments",
+            "model",
+            "--currency",
+            "JPY",
+        ])
+        assert args.icons == "nerd"
+        assert args.segments == "model"
+        assert args.currency == "JPY"
+
 
 class TestResolveCurrency:
     """_resolve_currency のテスト"""

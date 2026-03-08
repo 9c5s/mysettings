@@ -1159,6 +1159,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--icons", type=str, default=None)
     parser.add_argument("--currency", type=str.upper, default=None)
+    parser.add_argument("--segments", type=str, default=_DEFAULT_SEGMENTS)
     return parser.parse_args(argv)
 
 
