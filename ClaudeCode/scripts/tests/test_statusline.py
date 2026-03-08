@@ -384,3 +384,74 @@ class TestGetSupportedCurrencies:
         ):
             result = statusline._get_supported_currencies()
         assert result is None
+
+
+class TestParseArgs:
+    """_parse_args のテスト"""
+
+    def test_no_args(self):
+        """引数なしの場合はデフォルト値"""
+        args = statusline._parse_args([])
+        assert args.icons is None
+        assert args.currency is None
+
+    def test_icons_nerd(self):
+        """--icons nerd"""
+        args = statusline._parse_args(["--icons", "nerd"])
+        assert args.icons == "nerd"
+
+    def test_icons_invalid(self):
+        """--icons xxx は無効だがエラーにはならない"""
+        args = statusline._parse_args(["--icons", "xxx"])
+        assert args.icons == "xxx"
+
+    def test_currency_jpy(self):
+        """--currency jpy は大文字化される"""
+        args = statusline._parse_args(["--currency", "jpy"])
+        assert args.currency == "JPY"
+
+    def test_currency_and_icons(self):
+        """両方指定"""
+        args = statusline._parse_args(["--icons", "nerd", "--currency", "EUR"])
+        assert args.icons == "nerd"
+        assert args.currency == "EUR"
+
+
+class TestResolveCurrency:
+    """_resolve_currency のテスト"""
+
+    def test_valid_currency_from_arg(self):
+        """CLI引数の通貨がAPI対応なら採用"""
+        with patch(
+            "statusline._get_supported_currencies", return_value=["JPY", "USD", "EUR"]
+        ):
+            assert statusline._resolve_currency("JPY") == "JPY"
+
+    def test_invalid_currency_from_arg_falls_back_to_locale(self):
+        """CLI引数の通貨がAPI非対応ならロケール判定"""
+        with (
+            patch("statusline._get_supported_currencies", return_value=["JPY", "USD"]),
+            patch("statusline._get_currency_from_locale", return_value="JPY"),
+        ):
+            assert statusline._resolve_currency("XYZ") == "JPY"
+
+    def test_none_currency_uses_locale(self):
+        """通貨未指定ならロケール判定"""
+        with (
+            patch("statusline._get_supported_currencies", return_value=["JPY", "USD"]),
+            patch("statusline._get_currency_from_locale", return_value="JPY"),
+        ):
+            assert statusline._resolve_currency(None) == "JPY"
+
+    def test_locale_currency_not_supported_falls_back_to_usd(self):
+        """ロケール通貨がAPI非対応ならUSD"""
+        with (
+            patch("statusline._get_supported_currencies", return_value=["USD", "EUR"]),
+            patch("statusline._get_currency_from_locale", return_value="XYZ"),
+        ):
+            assert statusline._resolve_currency(None) == "USD"
+
+    def test_api_failure_falls_back_to_usd(self):
+        """API対応通貨リスト取得失敗時はUSD"""
+        with patch("statusline._get_supported_currencies", return_value=None):
+            assert statusline._resolve_currency("JPY") == "USD"
