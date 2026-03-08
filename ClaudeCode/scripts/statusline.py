@@ -75,6 +75,8 @@ _GIT_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-git-cache.json"
 _EXCHANGE_CACHE_TTL = 86400  # 24時間
 _EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-exchange-cache.json"
 _EXCHANGE_API_URL = "https://api.frankfurter.app/latest?from=USD&to={currency}"
+_CURRENCIES_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-currencies-cache.json"
+_CURRENCIES_API_URL = "https://api.frankfurter.app/currencies"
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,10 +104,20 @@ _CURRENCIES: dict[str, _CurrencyInfo] = {
     "DKK": _CurrencyInfo(symbol="kr", decimals=2),
     "PLN": _CurrencyInfo(symbol="z\u0142", decimals=2),
     "CZK": _CurrencyInfo(symbol="K\u010d", decimals=2),
-    "TWD": _CurrencyInfo(symbol="NT$", decimals=0),
     "SGD": _CurrencyInfo(symbol="S$", decimals=2),
     "HKD": _CurrencyInfo(symbol="HK$", decimals=2),
     "MXN": _CurrencyInfo(symbol="MX$", decimals=2),
+    "HUF": _CurrencyInfo(symbol="Ft", decimals=0),
+    "IDR": _CurrencyInfo(symbol="Rp", decimals=0),
+    "ILS": _CurrencyInfo(symbol="\u20aa", decimals=2),
+    "ISK": _CurrencyInfo(symbol="kr", decimals=0),
+    "MYR": _CurrencyInfo(symbol="RM", decimals=2),
+    "NZD": _CurrencyInfo(symbol="NZ$", decimals=2),
+    "PHP": _CurrencyInfo(symbol="\u20b1", decimals=2),
+    "RON": _CurrencyInfo(symbol="lei", decimals=2),
+    "THB": _CurrencyInfo(symbol="\u0e3f", decimals=2),
+    "TRY": _CurrencyInfo(symbol="\u20ba", decimals=2),
+    "ZAR": _CurrencyInfo(symbol="R", decimals=2),
 }
 
 _LOCALE_TO_CURRENCY: dict[str, str] = {
@@ -136,10 +148,20 @@ _LOCALE_TO_CURRENCY: dict[str, str] = {
     "DK": "DKK",
     "PL": "PLN",
     "CZ": "CZK",
-    "TW": "TWD",
     "SG": "SGD",
     "HK": "HKD",
     "MX": "MXN",
+    "HU": "HUF",
+    "ID": "IDR",
+    "IL": "ILS",
+    "IS": "ISK",
+    "MY": "MYR",
+    "NZ": "NZD",
+    "PH": "PHP",
+    "RO": "RON",
+    "TH": "THB",
+    "TR": "TRY",
+    "ZA": "ZAR",
 }
 
 
@@ -299,6 +321,18 @@ def _get_exchange_rate(currency: str) -> float | None:
         cache_key={"currency": currency},
     )
     return float(result) if result is not None else None
+
+
+def _get_supported_currencies() -> list[str] | None:  # pyright: ignore[reportUnusedFunction] 通貨バリデーション機能で使用予定
+    """frankfurter.app APIの対応通貨コードリストを取得する(キャッシュ付き)"""
+
+    def fetch() -> list[str]:
+        req = Request(_CURRENCIES_API_URL, headers={"User-Agent": "statusline/1.0"})
+        with urlopen(req, timeout=_API_TIMEOUT) as resp:  # noqa: S310
+            body = resp.read().decode("utf-8")
+        return sorted(json.loads(body).keys())
+
+    return _cached_fetch(_CURRENCIES_CACHE_PATH, _EXCHANGE_CACHE_TTL, fetch)
 
 
 def _get_cwd(data: dict[str, Any]) -> str:

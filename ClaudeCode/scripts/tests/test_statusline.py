@@ -67,11 +67,31 @@ class TestCurrencyData:
         assert info.symbol == "\u00a5"
         assert info.decimals == 0
 
+    def test_currencies_has_thb(self):
+        """新規追加通貨THBのテスト"""
+        info = statusline._CURRENCIES["THB"]
+        assert info.symbol == "\u0e3f"
+        assert info.decimals == 2
+
+    def test_currencies_has_try(self):
+        """新規追加通貨TRYのテスト"""
+        info = statusline._CURRENCIES["TRY"]
+        assert info.symbol == "\u20ba"
+        assert info.decimals == 2
+
+    def test_twd_removed(self):
+        """TWDはAPI非対応のため削除されている"""
+        assert "TWD" not in statusline._CURRENCIES
+
     def test_locale_to_currency_has_jp(self):
         assert statusline._LOCALE_TO_CURRENCY["JP"] == "JPY"
 
     def test_locale_to_currency_has_us(self):
         assert statusline._LOCALE_TO_CURRENCY["US"] == "USD"
+
+    def test_locale_to_currency_tw_removed(self):
+        """TWはAPI非対応のため削除されている"""
+        assert "TW" not in statusline._LOCALE_TO_CURRENCY
 
 
 class TestGetExchangeRate:
@@ -319,3 +339,48 @@ class TestCachedFetch:
         cache_file.write_text(json.dumps(cache_data))
         result = statusline._cached_fetch(cache_file, 60, lambda: None)
         assert result == {"expired": True}
+
+
+class TestGetSupportedCurrencies:
+    """_get_supported_currencies のテスト"""
+
+    def test_fetches_from_api(self, tmp_path):
+        """APIから通貨リストを取得する"""
+        cache_file = tmp_path / "currencies-cache.json"
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = (
+            b'{"AUD":"Australian Dollar",'
+            b'"JPY":"Japanese Yen",'
+            b'"USD":"United States Dollar"}'
+        )
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = lambda s, *a: None
+
+        with (
+            patch.object(statusline, "_CURRENCIES_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", return_value=mock_resp),
+        ):
+            result = statusline._get_supported_currencies()
+        assert result is not None
+        assert "JPY" in result
+        assert "USD" in result
+
+    def test_returns_cached_currencies(self, tmp_path):
+        """キャッシュから通貨リストを返す"""
+        cache_file = tmp_path / "currencies-cache.json"
+        cache_data = {"_cached_at": time.time(), "data": ["JPY", "USD", "EUR"]}
+        cache_file.write_text(json.dumps(cache_data))
+        with patch.object(statusline, "_CURRENCIES_CACHE_PATH", cache_file):
+            result = statusline._get_supported_currencies()
+        assert result is not None
+        assert "JPY" in result
+
+    def test_api_failure_returns_none(self, tmp_path):
+        """API失敗かつキャッシュなしの場合はNoneを返す"""
+        cache_file = tmp_path / "nonexistent.json"
+        with (
+            patch.object(statusline, "_CURRENCIES_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", side_effect=Exception("fail")),
+        ):
+            result = statusline._get_supported_currencies()
+        assert result is None
