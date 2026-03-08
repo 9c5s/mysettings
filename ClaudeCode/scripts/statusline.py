@@ -456,7 +456,7 @@ def _scan_daily_cost() -> float:
     return total
 
 
-def _get_daily_cost() -> float | None:  # pyright: ignore[reportUnusedFunction] Task 4で使用する
+def _get_daily_cost() -> float | None:
     """キャッシュ付きでデイリーコストを取得する
 
     TTLは_DAILY_COST_CACHE_TTL秒(60秒)。
@@ -1065,6 +1065,16 @@ def _seg_cost(data: dict[str, Any]) -> Segment | None:
     return Segment(text=label)
 
 
+def _seg_daily_cost(data: dict[str, Any]) -> Segment | None:  # noqa: ARG001
+    """デイリーコストセグメントを生成する"""
+    daily = _get_daily_cost()
+    if daily is None or daily <= 0.0:
+        return None
+
+    label = f"{_icons.CHART} {_format_cost(daily)}"
+    return Segment(text=label)
+
+
 def _render_line(segments: list[Segment]) -> str:
     """セグメントのリストをセパレータで結合して1行にする
 
@@ -1105,7 +1115,7 @@ def _build_lines(data: dict[str, Any]) -> list[str]:
 _LINES = [
     _LineConfig(segment_fns=[_seg_project, _seg_branch]),
     _LineConfig(segment_fns=[_seg_model, _seg_context, _seg_rate_5h, _seg_rate_7d]),
-    _LineConfig(segment_fns=[_seg_cost]),
+    _LineConfig(segment_fns=[_seg_cost, _seg_daily_cost]),
 ]
 
 

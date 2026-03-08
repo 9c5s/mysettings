@@ -1898,6 +1898,51 @@ class TestGetDailyCost:
         assert result == 5.67
 
 
+class TestSegDailyCost:
+    """_seg_daily_cost のテスト"""
+
+    def test_returns_segment_with_daily_cost(self) -> None:
+        """デイリーコストがある場合はフォーマットされたSegmentを返す"""
+        with (
+            patch.object(statusline, "_currency", "USD"),
+            patch("statusline._get_daily_cost", return_value=1.23),
+        ):
+            seg = statusline._seg_daily_cost({})
+        assert seg is not None
+        assert "$1.23" in seg.text
+        assert statusline._Icons().CHART in seg.text
+
+    def test_returns_none_when_none(self) -> None:
+        """デイリーコストがNoneの場合はNoneを返す"""
+        with patch("statusline._get_daily_cost", return_value=None):
+            seg = statusline._seg_daily_cost({})
+        assert seg is None
+
+    def test_returns_none_when_zero(self) -> None:
+        """デイリーコストが0.0の場合はNoneを返す"""
+        with patch("statusline._get_daily_cost", return_value=0.0):
+            seg = statusline._seg_daily_cost({})
+        assert seg is None
+
+    def test_jpy_display(self) -> None:
+        """JPYの場合は円表示"""
+        with (
+            patch.object(statusline, "_currency", "JPY"),
+            patch("statusline._get_exchange_rate", return_value=150.0),
+            patch("statusline._get_daily_cost", return_value=1.00),
+        ):
+            seg = statusline._seg_daily_cost({})
+        assert seg is not None
+        assert "¥150" in seg.text
+
+    def test_layout_cost_line_has_daily_cost(self) -> None:
+        """_LINESの3行目に_seg_daily_costが含まれる"""
+        cost_line = statusline._LINES[2]
+        fn_names = [fn.__name__ for fn in cost_line.segment_fns]
+        assert "_seg_cost" in fn_names
+        assert "_seg_daily_cost" in fn_names
+
+
 class TestCalculateEntryCost:
     """_calculate_entry_cost のテスト"""
 
