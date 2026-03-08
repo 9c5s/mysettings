@@ -8,6 +8,7 @@
 # pyright: reportUnknownMemberType=false
 # pyright: reportUnknownArgumentType=false
 # pyright: reportUnknownLambdaType=false
+# pyright: reportMissingImports=false
 
 import json
 import sys
@@ -16,7 +17,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent.parent / "ClaudeCode" / "scripts")
+)
 import statusline
 
 
