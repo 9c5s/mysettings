@@ -357,11 +357,13 @@ def _get_supported_currencies() -> list[str] | None:
 
 
 def _get_daily_cost(data: dict[str, Any]) -> float | None:
-    """日次コストをtotal_cost_usdのベースライン方式で算出する
+    """日次コストを累積方式で算出する
 
-    total_cost_usdはセッションを跨いで累積されるため、
-    日付が変わった時点のコストをベースラインとして記録し、
-    差分を当日のコストとして返す
+    total_cost_usdはセッションスコープ(各セッションで0から開始)のため、
+    ベースライン差分ではなくdeltaを累積する方式を取る
+    - 同一セッション内: delta(前回値との差分)を加算する
+    - 新セッション検出(delta < 0): 現在値を丸ごと加算する
+    - 日付変更時: 累積値を0にリセットする
     """
     cost = data.get("cost")
     total_cost = cost.get("total_cost_usd") if isinstance(cost, dict) else None
@@ -369,26 +371,36 @@ def _get_daily_cost(data: dict[str, Any]) -> float | None:
         return None
 
     try:
-        total_cost_val = float(total_cost)
+        current_total = float(total_cost)
     except ValueError, TypeError:
         return None
 
     today = datetime.now().astimezone().strftime("%Y-%m-%d")
 
-    # デイリーキャッシュを読み込む
+    accumulated = 0.0
+    last_total = current_total
+
     with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
         cache_text = _DAILY_COST_CACHE_PATH.read_text(encoding="utf-8")
         cache_obj = json.loads(cache_text)
-        if cache_obj.get("date") == today:
-            baseline = float(cache_obj.get("baseline_cost", 0.0))
-            return total_cost_val - baseline
 
-    # 新しい日: 現在のコストをベースラインとして記録する
+        if cache_obj.get("date") == today:
+            last_total = float(cache_obj.get("last_total", 0.0))
+            accumulated = float(cache_obj.get("accumulated", 0.0))
+
+            delta = current_total - last_total
+            if delta >= 0:
+                # 同一セッション内のコスト増加
+                accumulated += delta
+            else:
+                # 新セッション開始(total_cost_usdリセット)を検出
+                accumulated += current_total
+
     _write_cache(
         _DAILY_COST_CACHE_PATH,
-        {"date": today, "baseline_cost": total_cost_val},
+        {"date": today, "last_total": current_total, "accumulated": accumulated},
     )
-    return 0.0
+    return accumulated
 
 
 def _get_cwd(data: dict[str, Any]) -> str:
