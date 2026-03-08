@@ -1976,7 +1976,7 @@ class TestGetDailyCost:
     def test_returns_cached_daily_cost(self, tmp_path: Path) -> None:
         """キャッシュ付きでデイリーコストを返す"""
         cache_file = tmp_path / "daily-cost-cache.json"
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
+        today = datetime.now().astimezone().strftime("%Y-%m-%d")
         cache_data = {"_cached_at": time.time(), "data": 1.23, "date": today}
         cache_file.write_text(json.dumps(cache_data))
 

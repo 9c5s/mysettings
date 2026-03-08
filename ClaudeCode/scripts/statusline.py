@@ -431,7 +431,7 @@ def _scan_daily_cost() -> float:
     if pricing is None:
         return 0.0
 
-    today = datetime.now(UTC).date()
+    today = datetime.now().astimezone().date()
     total = 0.0
 
     if not _CLAUDE_PROJECTS_DIR.is_dir():
@@ -439,7 +439,9 @@ def _scan_daily_cost() -> float:
 
     for jsonl_path in _CLAUDE_PROJECTS_DIR.rglob("*.jsonl"):
         with contextlib.suppress(OSError):
-            mtime = datetime.fromtimestamp(jsonl_path.stat().st_mtime, tz=UTC).date()
+            mtime = (
+                datetime.fromtimestamp(jsonl_path.stat().st_mtime).astimezone().date()
+            )
             if mtime != today:
                 continue
 
@@ -462,7 +464,7 @@ def _get_daily_cost() -> float | None:
     TTLは_DAILY_COST_CACHE_TTL秒(60秒)。
     日付のcache_keyで日替わりリセットする
     """
-    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
     return _cached_fetch(
         _DAILY_COST_CACHE_PATH,
         _DAILY_COST_CACHE_TTL,
