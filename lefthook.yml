@@ -48,8 +48,9 @@ pre-commit:
 
     - name: pytest
       glob: '**/*.py'
-      exclude: '**/test_*.py'
       run: |
-        t=$(for f in {staged_files}; do
-          find . -name test_$(basename $f) -type f -print -quit; done)
-        ${t:+uvx -p 3.14 pytest -q $t}
+        t=$(for f in {staged_files}; do b=$(basename "$f")
+          [[ "$b" != test_* ]] && b="test_$b"
+          [ -f "tests/$b" ] && echo "tests/$b"
+        done | sort -u)
+        ${t:+uv run -p 3.14 pytest -q $t}
