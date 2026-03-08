@@ -19,6 +19,58 @@ sys.path.insert(
 )
 import statusline
 
+_FULL_STDIN_SAMPLE: dict[str, Any] = {
+    "cwd": "/fallback/cwd/directory",
+    "session_id": "abc123...",
+    "transcript_path": "/path/to/transcript.jsonl",
+    "model": {
+        "id": "claude-opus-4-6",
+        "display_name": "Opus",
+    },
+    "workspace": {
+        "current_dir": "/current/working/myproject",
+        "project_dir": "/original/project/directory",
+    },
+    "version": "1.0.80",
+    "output_style": {
+        "name": "default",
+    },
+    "cost": {
+        "total_cost_usd": 0.01234,
+        "total_duration_ms": 45000,
+        "total_api_duration_ms": 2300,
+        "total_lines_added": 156,
+        "total_lines_removed": 23,
+    },
+    "context_window": {
+        "total_input_tokens": 15234,
+        "total_output_tokens": 4521,
+        "context_window_size": 200000,
+        "used_percentage": 8,
+        "remaining_percentage": 92,
+        "current_usage": {
+            "input_tokens": 8500,
+            "output_tokens": 1200,
+            "cache_creation_input_tokens": 5000,
+            "cache_read_input_tokens": 2000,
+        },
+    },
+    "exceeds_200k_tokens": False,
+    "vim": {
+        "mode": "NORMAL",
+    },
+    "agent": {
+        "name": "security-reviewer",
+    },
+    "worktree": {
+        "name": "my-feature",
+        "path": "/path/to/.claude/worktrees/my-feature",
+        "branch": "worktree-my-feature",
+        "original_cwd": "/path/to/project",
+        "original_branch": "main",
+    },
+}
+
 
 class TestGetCurrencyFromLocale:
     """_get_currency_from_locale のテスト"""
@@ -1181,6 +1233,16 @@ class TestBuildLines:
         lines = statusline._build_lines(data)
         # 1行目: project | branch
         assert "\u2502" in lines[0]
+
+    def test_with_full_stdin_sample(self) -> None:
+        """実際のstdinデータ構造で_build_linesが正常に動作する"""
+        with patch.object(statusline, "_currency", "USD"):
+            lines = statusline._build_lines(dict(_FULL_STDIN_SAMPLE))
+        # stdinデータのみ(runtime注入なし)で3行: project, model+context, cost
+        assert len(lines) == 3
+        assert "myproject" in lines[0]  # workspace.current_dirが優先される
+        assert "Opus 4.6" in lines[1]
+        assert "$0.01" in lines[2]
 
 
 class TestGetOauthToken:
