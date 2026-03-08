@@ -14,6 +14,7 @@ Claude Codeのステータスフックから呼び出され、ターミナル下
 # pyright: reportUnknownArgumentType=false
 # pyright: reportUnknownVariableType=false
 
+import argparse
 import contextlib
 import json
 import locale
@@ -323,7 +324,7 @@ def _get_exchange_rate(currency: str) -> float | None:
     return float(result) if result is not None else None
 
 
-def _get_supported_currencies() -> list[str] | None:  # pyright: ignore[reportUnusedFunction] 通貨バリデーション機能で使用予定
+def _get_supported_currencies() -> list[str] | None:
     """frankfurter.app APIの対応通貨コードリストを取得する(キャッシュ付き)"""
 
     def fetch() -> list[str]:
@@ -945,22 +946,46 @@ _LINES = [
 ]
 
 
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """コマンドライン引数をパースする"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--icons", type=str, default=None)
+    parser.add_argument("--currency", type=str.upper, default=None)
+    return parser.parse_args(argv)
+
+
+def _resolve_currency(currency_arg: str | None) -> str:
+    """CLI引数とロケールから通貨コードを決定する
+
+    優先順位: CLI引数(API対応のみ) → ロケール判定(API対応のみ) → USD
+    """
+    supported = _get_supported_currencies()
+    if supported is None:
+        return "USD"
+
+    if currency_arg and currency_arg in supported:
+        return currency_arg
+
+    locale_currency = _get_currency_from_locale()
+    if locale_currency in supported:
+        return locale_currency
+
+    return "USD"
+
+
 def main() -> None:
     """stdinからClaude Codeのステータス情報JSONを読み取り表示する
 
     Claude Codeのstatuslineフックから呼び出されることを想定する
     stdinにはプロジェクト情報やモデル情報を含むJSONが渡される
-    --icons=nerd を指定するとNerd Fontsアイコンを使用する
+    --icons nerd を指定するとNerd Fontsアイコンを使用する
+    --currency JPY を指定すると通貨を指定できる
     """
     global _icons, _currency  # noqa: PLW0603
-    _icons = _ICONS_NERD if "--icons=nerd" in sys.argv else _Icons()
 
-    # --currency=XXX の解析
-    _currency = _get_currency_from_locale()
-    for arg in sys.argv:
-        if arg.startswith("--currency="):
-            _currency = arg.split("=", 1)[1].upper()
-            break
+    args = _parse_args()
+    _icons = _ICONS_NERD if args.icons == "nerd" else _Icons()
+    _currency = _resolve_currency(args.currency)
 
     try:
         raw = sys.stdin.read()
