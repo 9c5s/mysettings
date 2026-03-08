@@ -12,7 +12,7 @@ from typing import Any, Never
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 
-import pytest  # pyright: ignore[reportMissingImports]
+import pytest
 
 sys.path.insert(
     0, str(Path(__file__).resolve().parent.parent / "ClaudeCode" / "scripts")
@@ -1207,7 +1207,7 @@ class TestFetchUsage:
         """ネットワークエラー時は例外を送出する"""
         with (
             patch("statusline.urlopen", side_effect=URLError("fail")),
-            pytest.raises(URLError),  # pyright: ignore[reportUnknownMemberType]
+            pytest.raises(URLError),
         ):
             statusline._fetch_usage("token")
 
@@ -1293,7 +1293,7 @@ class TestFetchGitInfo:
         mock_result = MagicMock(returncode=1, stdout="")
         with (
             patch("statusline.subprocess.run", return_value=mock_result),
-            pytest.raises(RuntimeError),  # pyright: ignore[reportUnknownMemberType]
+            pytest.raises(RuntimeError),
         ):
             statusline._fetch_git_info("/some/path")
 
