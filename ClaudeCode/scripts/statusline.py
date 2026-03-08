@@ -1055,7 +1055,7 @@ def _get_session_cost(data: dict[str, Any]) -> float | None:
     return 0.0
 
 
-def _seg_cost(data: dict[str, Any]) -> Segment | None:
+def _seg_session_cost(data: dict[str, Any]) -> Segment | None:
     """セッションコストセグメントを生成する"""
     cost_val = _get_session_cost(data)
     if cost_val is None:
@@ -1115,7 +1115,7 @@ def _build_lines(data: dict[str, Any]) -> list[str]:
 _LINES = [
     _LineConfig(segment_fns=[_seg_project, _seg_branch]),
     _LineConfig(segment_fns=[_seg_model, _seg_context, _seg_rate_5h, _seg_rate_7d]),
-    _LineConfig(segment_fns=[_seg_cost, _seg_daily_cost]),
+    _LineConfig(segment_fns=[_seg_session_cost, _seg_daily_cost]),
 ]
 
 
