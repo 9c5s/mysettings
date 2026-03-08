@@ -1004,18 +1004,18 @@ def _format_cost(cost_usd: float) -> str:
     為替レート取得失敗時はUSDにフォールバックする
     """
     if _currency == "USD":
-        return f"${cost_usd:.2f}"
+        return f"${cost_usd:,.2f}"
 
     rate = _get_exchange_rate(_currency)
     if rate is None:
-        return f"${cost_usd:.2f}"
+        return f"${cost_usd:,.2f}"
 
     info = _CURRENCIES.get(_currency)
     if info is None:
-        return f"${cost_usd:.2f}"
+        return f"${cost_usd:,.2f}"
 
     converted = cost_usd * rate
-    return f"{info.symbol}{converted:.{info.decimals}f}"
+    return f"{info.symbol}{converted:,.{info.decimals}f}"
 
 
 def _get_session_cost(data: dict[str, Any]) -> float | None:
