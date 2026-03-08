@@ -1,4 +1,6 @@
----
+colors: false
+no_tty: true
+
 pre-commit:
   parallel: true
   jobs:
@@ -10,19 +12,20 @@ pre-commit:
       run: uvx lefthook validate
 
     - name: gitleaks
-      run: bunx gitleaks protect --staged --verbose
+      run: bunx gitleaks protect --staged
 
     - name: shell
       glob: '*.{sh,bash}'
-      run: >
-        bunx shfmt -w {staged_files} &&
+      run: |
+        bunx shfmt -w {staged_files}
         bunx shellcheck {staged_files}
       stage_fixed: true
 
     - name: yaml
       glob: '*.{yaml,yml}'
-      run: >
-        uvx yamlfix {staged_files} &&
+      exclude: 'lefthook.yml'
+      run: |
+        uvx yamlfix {staged_files}
         uvx yamllint {staged_files}
       stage_fixed: true
 
@@ -32,10 +35,21 @@ pre-commit:
         --files-ignore-unknown=true {staged_files}
       stage_fixed: true
 
-    - name: python
+    - name: ruff
       glob: '*.{py,pyi}'
-      run: >
-        uvx ruff format {staged_files} &&
-        uvx ruff check --fix {staged_files} &&
-        uvx pyright {staged_files}
+      run: |
+        uvx ruff format {staged_files}
+        uvx ruff check --fix {staged_files}
       stage_fixed: true
+
+    - name: pyright
+      glob: '*.{py,pyi}'
+      run: uvx pyright {staged_files}
+
+    - name: pytest
+      glob: '**/*.py'
+      exclude: '**/test_*.py'
+      run: |
+        t=$(for f in {staged_files}; do
+          find . -name test_$(basename $f) -type f -print -quit; done)
+        ${t:+uvx -p 3.14 pytest -q $t}
