@@ -315,13 +315,13 @@ class TestFormatCost:
 
 
 class TestSegCost:
-    """_seg_cost のテスト"""
+    """_seg_session_cost のテスト"""
 
     def test_returns_segment_with_cost(self) -> None:
         """コストデータがある場合はSegmentを返す"""
         with patch.object(statusline, "_currency", "USD"):
             data = {"cost": {"total_cost_usd": 1.23}}
-            seg = statusline._seg_cost(data)
+            seg = statusline._seg_session_cost(data)
             assert seg is not None
             assert "$1.23" in seg.text
 
@@ -332,24 +332,24 @@ class TestSegCost:
             patch("statusline._get_exchange_rate", return_value=150.0),
         ):
             data = {"cost": {"total_cost_usd": 1.23}}
-            seg = statusline._seg_cost(data)
+            seg = statusline._seg_session_cost(data)
             assert seg is not None
             # 1.23 * 150.0 = 184.5 -> :.0fの偶数丸めで184
             assert "¥184" in seg.text
 
     def test_no_cost_data_returns_none(self) -> None:
         """コストデータがない場合はNone"""
-        seg = statusline._seg_cost({})
+        seg = statusline._seg_session_cost({})
         assert seg is None
 
     def test_no_total_cost_returns_none(self) -> None:
         """total_cost_usdがない場合はNone"""
-        seg = statusline._seg_cost({"cost": {}})
+        seg = statusline._seg_session_cost({"cost": {}})
         assert seg is None
 
     def test_non_numeric_cost_returns_none(self) -> None:
         """数値変換できないtotal_cost_usdの場合はNone"""
-        seg = statusline._seg_cost({"cost": {"total_cost_usd": "abc"}})
+        seg = statusline._seg_session_cost({"cost": {"total_cost_usd": "abc"}})
         assert seg is None
 
 
@@ -1939,7 +1939,7 @@ class TestSegDailyCost:
         """_LINESの3行目に_seg_daily_costが含まれる"""
         cost_line = statusline._LINES[2]
         fn_names = [fn.__name__ for fn in cost_line.segment_fns]
-        assert "_seg_cost" in fn_names
+        assert "_seg_session_cost" in fn_names
         assert "_seg_daily_cost" in fn_names
 
 
