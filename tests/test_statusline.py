@@ -2,13 +2,6 @@
 
 # テストではプライベートメンバーへのアクセスが必要である
 # pyright: reportPrivateUsage=false
-# pyright: reportUnknownParameterType=false
-# pyright: reportMissingParameterType=false
-# pyright: reportUnknownVariableType=false
-# pyright: reportUnknownMemberType=false
-# pyright: reportUnknownArgumentType=false
-# pyright: reportUnknownLambdaType=false
-# pyright: reportMissingImports=false
 
 import json
 import sys
@@ -104,15 +97,15 @@ class TestGetExchangeRate:
         """USDの場合は変換不要なのでNoneを返す"""
         assert statusline._get_exchange_rate("USD") is None
 
-    def test_fetches_rate_from_api(self, tmp_path):
+    def test_fetches_rate_from_api(self, tmp_path: Path):
         """APIからレートを取得できる"""
         # 存在しないキャッシュファイルを指定してキャッシュミスを発生させる
         cache_file = tmp_path / "nonexistent-cache.json"
 
         mock_resp = MagicMock()
         mock_resp.read.return_value = b'{"rates":{"JPY":150.5}}'
-        mock_resp.__enter__ = lambda s: s
-        mock_resp.__exit__ = lambda s, *a: None
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = None
 
         with (
             patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file),
@@ -121,7 +114,7 @@ class TestGetExchangeRate:
             rate = statusline._get_exchange_rate("JPY")
         assert rate == 150.5
 
-    def test_returns_cached_rate(self, tmp_path):
+    def test_returns_cached_rate(self, tmp_path: Path):
         """有効なキャッシュからレートを返す"""
         cache_file = tmp_path / "exchange-cache.json"
         cache_data = {"_cached_at": time.time(), "data": 149.0, "currency": "JPY"}
@@ -131,7 +124,7 @@ class TestGetExchangeRate:
             rate = statusline._get_exchange_rate("JPY")
         assert rate == 149.0
 
-    def test_api_failure_returns_expired_cache(self, tmp_path):
+    def test_api_failure_returns_expired_cache(self, tmp_path: Path):
         """API失敗時は期限切れキャッシュを返す"""
         cache_file = tmp_path / "exchange-cache.json"
         cache_data = {"_cached_at": 0, "data": 148.0, "currency": "JPY"}
@@ -144,7 +137,7 @@ class TestGetExchangeRate:
             rate = statusline._get_exchange_rate("JPY")
         assert rate == 148.0
 
-    def test_api_failure_no_cache_returns_none(self, tmp_path):
+    def test_api_failure_no_cache_returns_none(self, tmp_path: Path):
         """API失敗かつキャッシュなしの場合はNoneを返す"""
         # 存在しないキャッシュファイルを指定する
         cache_file = tmp_path / "nonexistent-cache.json"
@@ -156,7 +149,7 @@ class TestGetExchangeRate:
             rate = statusline._get_exchange_rate("JPY")
         assert rate is None
 
-    def test_different_currency_invalidates_cache(self, tmp_path):
+    def test_different_currency_invalidates_cache(self, tmp_path: Path):
         """キャッシュの通貨が異なる場合はAPIから取得する"""
         cache_file = tmp_path / "exchange-cache.json"
         cache_data = {"_cached_at": time.time(), "data": 0.92, "currency": "EUR"}
@@ -164,8 +157,8 @@ class TestGetExchangeRate:
 
         mock_resp = MagicMock()
         mock_resp.read.return_value = b'{"rates":{"JPY":150.0}}'
-        mock_resp.__enter__ = lambda s: s
-        mock_resp.__exit__ = lambda s, *a: None
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = None
 
         with (
             patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file),
@@ -254,13 +247,13 @@ class TestSegCost:
 class TestCachedFetch:
     """_cached_fetch のテスト"""
 
-    def test_returns_fresh_data_on_cache_miss(self, tmp_path):
+    def test_returns_fresh_data_on_cache_miss(self, tmp_path: Path):
         """キャッシュミス時はfetch_fnからデータを取得する"""
         cache_file = tmp_path / "test-cache.json"
         result = statusline._cached_fetch(cache_file, 60, lambda: {"key": "value"})
         assert result == {"key": "value"}
 
-    def test_returns_cached_data_within_ttl(self, tmp_path):
+    def test_returns_cached_data_within_ttl(self, tmp_path: Path):
         """TTL内のキャッシュを返す"""
         cache_file = tmp_path / "test-cache.json"
         cache_data = {"_cached_at": time.time(), "data": {"cached": True}}
@@ -268,7 +261,7 @@ class TestCachedFetch:
         result = statusline._cached_fetch(cache_file, 60, lambda: {"fresh": True})
         assert result == {"cached": True}
 
-    def test_refetches_on_expired_cache(self, tmp_path):
+    def test_refetches_on_expired_cache(self, tmp_path: Path):
         """TTL切れキャッシュは再取得する"""
         cache_file = tmp_path / "test-cache.json"
         cache_data = {"_cached_at": 0, "data": {"old": True}}
@@ -276,7 +269,7 @@ class TestCachedFetch:
         result = statusline._cached_fetch(cache_file, 60, lambda: {"new": True})
         assert result == {"new": True}
 
-    def test_returns_expired_cache_on_fetch_failure(self, tmp_path):
+    def test_returns_expired_cache_on_fetch_failure(self, tmp_path: Path):
         """fetch失敗時は期限切れキャッシュを返す"""
         cache_file = tmp_path / "test-cache.json"
         cache_data = {"_cached_at": 0, "data": {"expired": True}}
@@ -288,7 +281,7 @@ class TestCachedFetch:
         result = statusline._cached_fetch(cache_file, 60, failing_fetch)
         assert result == {"expired": True}
 
-    def test_returns_none_on_fetch_failure_no_cache(self, tmp_path):
+    def test_returns_none_on_fetch_failure_no_cache(self, tmp_path: Path):
         """fetch失敗かつキャッシュなしの場合はNoneを返す"""
         cache_file = tmp_path / "nonexistent.json"
 
@@ -298,7 +291,7 @@ class TestCachedFetch:
         result = statusline._cached_fetch(cache_file, 60, failing_fetch)
         assert result is None
 
-    def test_cache_key_mismatch_refetches(self, tmp_path):
+    def test_cache_key_mismatch_refetches(self, tmp_path: Path):
         """cache_keyが異なる場合は再取得する"""
         cache_file = tmp_path / "test-cache.json"
         cache_data = {
@@ -312,7 +305,7 @@ class TestCachedFetch:
         )
         assert result == {"new": True}
 
-    def test_cache_key_match_returns_cache(self, tmp_path):
+    def test_cache_key_match_returns_cache(self, tmp_path: Path):
         """cache_keyが一致する場合はキャッシュを返す"""
         cache_file = tmp_path / "test-cache.json"
         cache_data = {
@@ -326,7 +319,7 @@ class TestCachedFetch:
         )
         assert result == {"cached": True}
 
-    def test_writes_cache_file(self, tmp_path):
+    def test_writes_cache_file(self, tmp_path: Path):
         """取得後にキャッシュファイルが書き込まれる"""
         cache_file = tmp_path / "test-cache.json"
         statusline._cached_fetch(cache_file, 60, lambda: {"written": True})
@@ -335,7 +328,7 @@ class TestCachedFetch:
         assert data["data"] == {"written": True}
         assert "_cached_at" in data
 
-    def test_fetch_returning_none_returns_expired(self, tmp_path):
+    def test_fetch_returning_none_returns_expired(self, tmp_path: Path):
         """fetch_fnがNoneを返した場合は期限切れキャッシュを返す"""
         cache_file = tmp_path / "test-cache.json"
         cache_data = {"_cached_at": 0, "data": {"expired": True}}
@@ -347,7 +340,7 @@ class TestCachedFetch:
 class TestGetSupportedCurrencies:
     """_get_supported_currencies のテスト"""
 
-    def test_fetches_from_api(self, tmp_path):
+    def test_fetches_from_api(self, tmp_path: Path):
         """APIから通貨リストを取得する"""
         cache_file = tmp_path / "currencies-cache.json"
         mock_resp = MagicMock()
@@ -356,8 +349,8 @@ class TestGetSupportedCurrencies:
             b'"JPY":"Japanese Yen",'
             b'"USD":"United States Dollar"}'
         )
-        mock_resp.__enter__ = lambda s: s
-        mock_resp.__exit__ = lambda s, *a: None
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = None
 
         with (
             patch.object(statusline, "_CURRENCIES_CACHE_PATH", cache_file),
@@ -368,7 +361,7 @@ class TestGetSupportedCurrencies:
         assert "JPY" in result
         assert "USD" in result
 
-    def test_returns_cached_currencies(self, tmp_path):
+    def test_returns_cached_currencies(self, tmp_path: Path):
         """キャッシュから通貨リストを返す"""
         cache_file = tmp_path / "currencies-cache.json"
         cache_data = {"_cached_at": time.time(), "data": ["JPY", "USD", "EUR"]}
@@ -378,7 +371,7 @@ class TestGetSupportedCurrencies:
         assert result is not None
         assert "JPY" in result
 
-    def test_api_failure_returns_none(self, tmp_path):
+    def test_api_failure_returns_none(self, tmp_path: Path):
         """API失敗かつキャッシュなしの場合はNoneを返す"""
         cache_file = tmp_path / "nonexistent.json"
         with (

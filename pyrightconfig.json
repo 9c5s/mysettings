@@ -2,5 +2,6 @@
 	"typeCheckingMode": "strict",
 	"pythonVersion": "3.14",
 	"venvPath": ".",
-	"venv": ".venv"
+	"venv": ".venv",
+	"extraPaths": ["ClaudeCode/scripts"]
 }
