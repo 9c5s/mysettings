@@ -1826,11 +1826,14 @@ class TestScanDailyCost:
         model: str = "claude-opus-4-6",
         input_tokens: int = 100,
         output_tokens: int = 50,
+        timestamp: str | None = None,
     ) -> str:
         """テスト用のJONLエントリを生成する"""
         entry: dict[str, Any] = {}
         if cost_usd is not None:
             entry["costUSD"] = cost_usd
+        if timestamp is not None:
+            entry["timestamp"] = timestamp
         entry["message"] = {
             "model": model,
             "usage": {
@@ -1951,6 +1954,52 @@ class TestScanDailyCost:
             result = statusline._scan_daily_cost()
 
         assert result == 0.0
+
+    def test_skips_entries_with_old_timestamp(self, tmp_path: Path) -> None:
+        """timestampが今日でないエントリはスキップする"""
+        projects_dir = tmp_path / "projects"
+        project_dir = projects_dir / "myproject"
+        project_dir.mkdir(parents=True)
+
+        now_iso = datetime.now(UTC).isoformat()
+        yesterday_iso = "2020-01-01T12:00:00Z"
+
+        jsonl = project_dir / "session1.jsonl"
+        jsonl.write_text(
+            self._make_jsonl_entry(cost_usd=0.10, timestamp=now_iso)
+            + "\n"
+            + self._make_jsonl_entry(cost_usd=0.90, timestamp=yesterday_iso)
+            + "\n"
+        )
+
+        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
+
+        with (
+            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
+            patch("statusline._get_model_pricing", return_value=pricing),
+        ):
+            result = statusline._scan_daily_cost()
+
+        assert abs(result - 0.10) < 1e-10
+
+    def test_includes_entries_without_timestamp(self, tmp_path: Path) -> None:
+        """timestampがないエントリはフォールバックで集計する"""
+        projects_dir = tmp_path / "projects"
+        project_dir = projects_dir / "myproject"
+        project_dir.mkdir(parents=True)
+
+        jsonl = project_dir / "session1.jsonl"
+        jsonl.write_text(self._make_jsonl_entry(cost_usd=0.50) + "\n")
+
+        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
+
+        with (
+            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
+            patch("statusline._get_model_pricing", return_value=pricing),
+        ):
+            result = statusline._scan_daily_cost()
+
+        assert abs(result - 0.50) < 1e-10
 
     def test_pricing_none_returns_zero(self, tmp_path: Path) -> None:
         """料金データ取得失敗時は0.0を返す"""
