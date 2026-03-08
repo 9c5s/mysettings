@@ -313,6 +313,29 @@ class TestFormatCost:
         ):
             assert statusline._format_cost(1.23) == "$1.23"
 
+    def test_usd_large_value_comma_separated(self) -> None:
+        """USDの大きい値はカンマ区切りになる"""
+        with patch.object(statusline, "_currency", "USD"):
+            assert statusline._format_cost(1234.56) == "$1,234.56"
+
+    def test_jpy_large_value_comma_separated(self) -> None:
+        """JPYの大きい値はカンマ区切りになる"""
+        with (
+            patch.object(statusline, "_currency", "JPY"),
+            patch("statusline._get_exchange_rate", return_value=150.0),
+        ):
+            # 10.0 * 150.0 = 1500
+            assert statusline._format_cost(10.0) == "¥1,500"
+
+    def test_eur_large_value_comma_separated(self) -> None:
+        """EURの大きい値はカンマ区切りになる"""
+        with (
+            patch.object(statusline, "_currency", "EUR"),
+            patch("statusline._get_exchange_rate", return_value=0.92),
+        ):
+            # 2000.0 * 0.92 = 1840.0
+            assert statusline._format_cost(2000.0) == "€1,840.00"
+
 
 class TestSegCost:
     """_seg_session_cost のテスト"""
