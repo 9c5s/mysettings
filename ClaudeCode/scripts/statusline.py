@@ -381,6 +381,43 @@ def _get_model_pricing() -> dict[str, Any] | None:  # pyright: ignore[reportUnus
     return _cached_fetch(_PRICING_CACHE_PATH, _PRICING_CACHE_TTL, fetch)
 
 
+def _calculate_entry_cost(entry: dict[str, Any], pricing: dict[str, Any]) -> float:  # pyright: ignore[reportUnusedFunction] Task 3で使用する
+    """JONLエントリ1件のコストを算出する
+
+    costUSDフィールドがあればそれを使用し、
+    なければトークン数と料金テーブルから計算する
+    """
+    cost_usd = entry.get("costUSD")
+    if cost_usd is not None:
+        return float(cost_usd)
+
+    message = entry.get("message")
+    if not isinstance(message, dict):
+        return 0.0
+
+    usage = message.get("usage")
+    if not isinstance(usage, dict):
+        return 0.0
+
+    model = message.get("model", "")
+    model_pricing = pricing.get(model)
+    if not isinstance(model_pricing, dict):
+        return 0.0
+
+    input_tokens = int(usage.get("input_tokens", 0))
+    output_tokens = int(usage.get("output_tokens", 0))
+    cache_creation = int(usage.get("cache_creation_input_tokens", 0))
+    cache_read = int(usage.get("cache_read_input_tokens", 0))
+
+    return (
+        input_tokens * float(model_pricing.get("input_cost_per_token", 0))
+        + output_tokens * float(model_pricing.get("output_cost_per_token", 0))
+        + cache_creation
+        * float(model_pricing.get("cache_creation_input_token_cost", 0))
+        + cache_read * float(model_pricing.get("cache_read_input_token_cost", 0))
+    )
+
+
 def _get_cwd(data: dict[str, Any]) -> str:
     """stdinデータからカレントディレクトリを取得する
 
