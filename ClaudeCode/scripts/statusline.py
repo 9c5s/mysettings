@@ -425,7 +425,7 @@ def _scan_daily_cost() -> float:
     """今日のJONLファイルからデイリーコストを集計する
 
     ~/.claude/projects/以下の*.jsonlを走査し、
-    mtimeが今日のファイルからコストを集計する
+    mtimeが今日のファイルを対象にエントリのtimestampで日付フィルタする
     """
     pricing = _get_model_pricing()
     if pricing is None:
@@ -453,6 +453,13 @@ def _scan_daily_cost() -> float:
                         json.JSONDecodeError, ValueError, TypeError, KeyError
                     ):
                         entry = json.loads(line)
+                        ts = entry.get("timestamp")
+                        if (
+                            isinstance(ts, str)
+                            and ts
+                            and _parse_iso_to_local(ts).date() != today
+                        ):
+                            continue
                         total += _calculate_entry_cost(entry, pricing)
 
     return total
