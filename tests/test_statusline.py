@@ -420,6 +420,10 @@ class TestGetSessionCost:
         assert cache_obj["session_id"] == "session-2"
         assert cache_obj["baseline_cost"] == 10.00
 
+    def test_cost_not_dict_returns_none(self) -> None:
+        """costがdictでない場合はNone"""
+        assert statusline._get_session_cost({"cost": "not-a-dict"}) is None
+
 
 class TestCachedFetch:
     """_cached_fetch のテスト"""
@@ -967,6 +971,14 @@ class TestSegProject:
         assert seg is not None
         assert "unknown" in seg.text
 
+    def test_git_info_without_remote_url_no_link(self) -> None:
+        """git情報はあるがremote_urlがない場合はリンクなし"""
+        data = {"cwd": "/home/user/myproject", "_git": {"branch": "main"}}
+        seg = statusline._seg_project(data)
+        assert seg is not None
+        assert "myproject" in seg.text
+        assert "\033]8;;" not in seg.text
+
 
 class TestSegBranch:
     """_seg_branch のテスト"""
@@ -1008,6 +1020,14 @@ class TestSegBranch:
         data = {"_git": {"branch": "main"}}
         seg = statusline._seg_branch(data)
         assert seg is not None
+        assert "\033]8;;" not in seg.text
+
+    def test_unsupported_remote_protocol_no_link(self) -> None:
+        """非対応プロトコルのremote_urlではリンクなし"""
+        data = {"_git": {"branch": "main", "remote_url": "svn://example.com/repo"}}
+        seg = statusline._seg_branch(data)
+        assert seg is not None
+        assert "main" in seg.text
         assert "\033]8;;" not in seg.text
 
 
@@ -1095,6 +1115,10 @@ class TestSegContext:
         data = {"context_window": {"used_percentage": "abc"}}
         assert statusline._seg_context(data) is None
 
+    def test_context_window_not_dict_returns_none(self) -> None:
+        """context_windowがdictでない場合はNone"""
+        assert statusline._seg_context({"context_window": "not-a-dict"}) is None
+
 
 class TestSegLines:
     """_seg_lines のテスト"""
@@ -1135,6 +1159,10 @@ class TestSegLines:
         """数値変換できないline数の場合はNone"""
         data = {"cost": {"total_lines_added": "abc", "total_lines_removed": 0}}
         assert statusline._seg_lines(data) is None
+
+    def test_cost_not_dict_returns_none(self) -> None:
+        """costがdictでない場合はNone"""
+        assert statusline._seg_lines({"cost": "not-a-dict"}) is None
 
 
 class TestSegRateCommon:
@@ -1217,6 +1245,14 @@ class TestSegRateCommon:
                 },
             },
         }
+        seg = statusline._seg_rate_common(
+            data, "five_hour", "5h", "\u23f0", statusline._format_reset_time_short
+        )
+        assert seg is None
+
+    def test_missing_resets_at_returns_none(self) -> None:
+        """resets_atがない場合はNone"""
+        data = {"_usage": {"five_hour": {"utilization": 45.0}}}
         seg = statusline._seg_rate_common(
             data, "five_hour", "5h", "\u23f0", statusline._format_reset_time_short
         )
