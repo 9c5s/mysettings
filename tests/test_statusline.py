@@ -4,6 +4,7 @@
 # pyright: reportPrivateUsage=false
 
 import json
+import os
 import sys
 import time
 from datetime import UTC, datetime
@@ -1707,6 +1708,194 @@ class TestGetModelPricing:
 
         assert result is not None
         assert result["claude-opus-4-6"]["input_cost_per_token"] == 0.000015
+
+
+class TestScanDailyCost:
+    """_scan_daily_cost のテスト"""
+
+    def _make_jsonl_entry(
+        self,
+        *,
+        cost_usd: float | None = None,
+        model: str = "claude-opus-4-6",
+        input_tokens: int = 100,
+        output_tokens: int = 50,
+    ) -> str:
+        """テスト用のJONLエントリを生成する"""
+        entry: dict[str, Any] = {}
+        if cost_usd is not None:
+            entry["costUSD"] = cost_usd
+        entry["message"] = {
+            "model": model,
+            "usage": {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+            },
+        }
+        return json.dumps(entry)
+
+    def test_aggregates_today_files(self, tmp_path: Path) -> None:
+        """今日のmtimeを持つJSONLファイルからコストを集計する"""
+        projects_dir = tmp_path / "projects"
+        project_dir = projects_dir / "myproject"
+        project_dir.mkdir(parents=True)
+
+        jsonl = project_dir / "session1.jsonl"
+        jsonl.write_text(
+            self._make_jsonl_entry(cost_usd=0.10)
+            + "\n"
+            + self._make_jsonl_entry(cost_usd=0.20)
+            + "\n"
+        )
+
+        pricing = {
+            "claude-opus-4-6": {
+                "input_cost_per_token": 0.000015,
+                "output_cost_per_token": 0.000075,
+            },
+        }
+
+        with (
+            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
+            patch("statusline._get_model_pricing", return_value=pricing),
+        ):
+            result = statusline._scan_daily_cost()
+
+        assert abs(result - 0.30) < 1e-10
+
+    def test_skips_lines_without_input_tokens(self, tmp_path: Path) -> None:
+        """input_tokensを含まない行はスキップする"""
+        projects_dir = tmp_path / "projects"
+        project_dir = projects_dir / "myproject"
+        project_dir.mkdir(parents=True)
+
+        jsonl = project_dir / "session1.jsonl"
+        jsonl.write_text(
+            '{"type":"summary","text":"hello"}\n'
+            + self._make_jsonl_entry(cost_usd=0.50)
+            + "\n"
+        )
+
+        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
+
+        with (
+            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
+            patch("statusline._get_model_pricing", return_value=pricing),
+        ):
+            result = statusline._scan_daily_cost()
+
+        assert abs(result - 0.50) < 1e-10
+
+    def test_skips_invalid_json_lines(self, tmp_path: Path) -> None:
+        """不正なJSON行はスキップする"""
+        projects_dir = tmp_path / "projects"
+        project_dir = projects_dir / "myproject"
+        project_dir.mkdir(parents=True)
+
+        jsonl = project_dir / "session1.jsonl"
+        jsonl.write_text(
+            "{invalid json with input_tokens\n"
+            + self._make_jsonl_entry(cost_usd=0.25)
+            + "\n"
+        )
+
+        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
+
+        with (
+            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
+            patch("statusline._get_model_pricing", return_value=pricing),
+        ):
+            result = statusline._scan_daily_cost()
+
+        assert abs(result - 0.25) < 1e-10
+
+    def test_no_projects_dir_returns_zero(self, tmp_path: Path) -> None:
+        """プロジェクトディレクトリが存在しない場合は0.0を返す"""
+        projects_dir = tmp_path / "nonexistent"
+
+        with (
+            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
+            patch(
+                "statusline._get_model_pricing",
+                return_value={"claude-opus-4-6": {}},
+            ),
+        ):
+            result = statusline._scan_daily_cost()
+
+        assert result == 0.0
+
+    def test_skips_old_files(self, tmp_path: Path) -> None:
+        """mtimeが今日でないファイルはスキップする"""
+        projects_dir = tmp_path / "projects"
+        project_dir = projects_dir / "myproject"
+        project_dir.mkdir(parents=True)
+
+        jsonl = project_dir / "old_session.jsonl"
+        jsonl.write_text(self._make_jsonl_entry(cost_usd=1.00) + "\n")
+        # mtimeを昨日に設定する
+        old_time = time.time() - 86400 * 2
+        os.utime(jsonl, (old_time, old_time))
+
+        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
+
+        with (
+            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
+            patch("statusline._get_model_pricing", return_value=pricing),
+        ):
+            result = statusline._scan_daily_cost()
+
+        assert result == 0.0
+
+    def test_pricing_none_returns_zero(self, tmp_path: Path) -> None:
+        """料金データ取得失敗時は0.0を返す"""
+        projects_dir = tmp_path / "projects"
+        project_dir = projects_dir / "myproject"
+        project_dir.mkdir(parents=True)
+
+        jsonl = project_dir / "session1.jsonl"
+        jsonl.write_text(self._make_jsonl_entry(cost_usd=0.50) + "\n")
+
+        with (
+            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
+            patch("statusline._get_model_pricing", return_value=None),
+        ):
+            result = statusline._scan_daily_cost()
+
+        assert result == 0.0
+
+
+class TestGetDailyCost:
+    """_get_daily_cost のテスト"""
+
+    def test_returns_cached_daily_cost(self, tmp_path: Path) -> None:
+        """キャッシュ付きでデイリーコストを返す"""
+        cache_file = tmp_path / "daily-cost-cache.json"
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
+        cache_data = {"_cached_at": time.time(), "data": 1.23, "date": today}
+        cache_file.write_text(json.dumps(cache_data))
+
+        with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
+            result = statusline._get_daily_cost()
+
+        assert result == 1.23
+
+    def test_date_change_invalidates_cache(self, tmp_path: Path) -> None:
+        """日付が変わるとキャッシュが無効化される"""
+        cache_file = tmp_path / "daily-cost-cache.json"
+        cache_data = {
+            "_cached_at": time.time(),
+            "data": 1.23,
+            "date": "1999-01-01",
+        }
+        cache_file.write_text(json.dumps(cache_data))
+
+        with (
+            patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file),
+            patch("statusline._scan_daily_cost", return_value=5.67),
+        ):
+            result = statusline._get_daily_cost()
+
+        assert result == 5.67
 
 
 class TestCalculateEntryCost:

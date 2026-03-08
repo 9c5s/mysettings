@@ -79,6 +79,9 @@ _SESSION_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-session-cost.js
 _PRICING_CACHE_TTL = 86400  # 24時間
 _PRICING_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-pricing-cache.json"
 _PRICING_API_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+_DAILY_COST_CACHE_TTL = 60  # 秒
+_DAILY_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-daily-cost-cache.json"
+_CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 _EXCHANGE_API_URL = "https://api.frankfurter.app/latest?from=USD&to={currency}"
 _CURRENCIES_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-currencies-cache.json"
 _CURRENCIES_API_URL = "https://api.frankfurter.app/currencies"
@@ -381,7 +384,7 @@ def _get_model_pricing() -> dict[str, Any] | None:  # pyright: ignore[reportUnus
     return _cached_fetch(_PRICING_CACHE_PATH, _PRICING_CACHE_TTL, fetch)
 
 
-def _calculate_entry_cost(entry: dict[str, Any], pricing: dict[str, Any]) -> float:  # pyright: ignore[reportUnusedFunction] Task 3で使用する
+def _calculate_entry_cost(entry: dict[str, Any], pricing: dict[str, Any]) -> float:
     """JONLエントリ1件のコストを算出する
 
     costUSDフィールドがあればそれを使用し、
@@ -415,6 +418,56 @@ def _calculate_entry_cost(entry: dict[str, Any], pricing: dict[str, Any]) -> flo
         + cache_creation
         * float(model_pricing.get("cache_creation_input_token_cost", 0))
         + cache_read * float(model_pricing.get("cache_read_input_token_cost", 0))
+    )
+
+
+def _scan_daily_cost() -> float:
+    """今日のJONLファイルからデイリーコストを集計する
+
+    ~/.claude/projects/以下の*.jsonlを走査し、
+    mtimeが今日のファイルからコストを集計する
+    """
+    pricing = _get_model_pricing()
+    if pricing is None:
+        return 0.0
+
+    today = datetime.now(UTC).date()
+    total = 0.0
+
+    if not _CLAUDE_PROJECTS_DIR.is_dir():
+        return 0.0
+
+    for jsonl_path in _CLAUDE_PROJECTS_DIR.rglob("*.jsonl"):
+        with contextlib.suppress(OSError):
+            mtime = datetime.fromtimestamp(jsonl_path.stat().st_mtime, tz=UTC).date()
+            if mtime != today:
+                continue
+
+            with jsonl_path.open(encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if "input_tokens" not in line:
+                        continue
+                    with contextlib.suppress(
+                        json.JSONDecodeError, ValueError, TypeError, KeyError
+                    ):
+                        entry = json.loads(line)
+                        total += _calculate_entry_cost(entry, pricing)
+
+    return total
+
+
+def _get_daily_cost() -> float | None:  # pyright: ignore[reportUnusedFunction] Task 4で使用する
+    """キャッシュ付きでデイリーコストを取得する
+
+    TTLは_DAILY_COST_CACHE_TTL秒(60秒)。
+    日付のcache_keyで日替わりリセットする
+    """
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    return _cached_fetch(
+        _DAILY_COST_CACHE_PATH,
+        _DAILY_COST_CACHE_TTL,
+        _scan_daily_cost,
+        cache_key={"date": today},
     )
 
 
