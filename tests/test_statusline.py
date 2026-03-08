@@ -8,7 +8,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Never
+from typing import Any, ClassVar, Never
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 
@@ -1707,3 +1707,77 @@ class TestGetModelPricing:
 
         assert result is not None
         assert result["claude-opus-4-6"]["input_cost_per_token"] == 0.000015
+
+
+class TestCalculateEntryCost:
+    """_calculate_entry_cost のテスト"""
+
+    _PRICING: ClassVar[dict[str, Any]] = {
+        "claude-opus-4-6": {
+            "input_cost_per_token": 0.000015,
+            "output_cost_per_token": 0.000075,
+            "cache_creation_input_token_cost": 0.00001875,
+            "cache_read_input_token_cost": 0.0000015,
+        },
+    }
+
+    def test_cost_usd_field_is_preferred(self) -> None:
+        """costUSDフィールドがあればそれを返す"""
+        entry = {"costUSD": 0.42}
+        result = statusline._calculate_entry_cost(entry, self._PRICING)
+        assert result == 0.42
+
+    def test_calculates_from_tokens(self) -> None:
+        """costUSDがない場合はトークン数と料金テーブルから計算する"""
+        entry = {
+            "message": {
+                "model": "claude-opus-4-6",
+                "usage": {
+                    "input_tokens": 1000,
+                    "output_tokens": 500,
+                    "cache_creation_input_tokens": 200,
+                    "cache_read_input_tokens": 100,
+                },
+            },
+        }
+        # 1000 * 0.000015 + 500 * 0.000075 + 200 * 0.00001875 + 100 * 0.0000015
+        # = 0.015 + 0.0375 + 0.00375 + 0.00015 = 0.0564
+        result = statusline._calculate_entry_cost(entry, self._PRICING)
+        assert abs(result - 0.0564) < 1e-10
+
+    def test_model_not_in_pricing_returns_zero(self) -> None:
+        """料金テーブルにモデルがない場合は0.0を返す"""
+        entry = {
+            "message": {
+                "model": "unknown-model",
+                "usage": {"input_tokens": 1000, "output_tokens": 500},
+            },
+        }
+        result = statusline._calculate_entry_cost(entry, self._PRICING)
+        assert result == 0.0
+
+    def test_no_message_returns_zero(self) -> None:
+        """messageキーがない場合は0.0を返す"""
+        result = statusline._calculate_entry_cost({}, self._PRICING)
+        assert result == 0.0
+
+    def test_no_usage_returns_zero(self) -> None:
+        """message.usageがない場合は0.0を返す"""
+        entry = {"message": {"model": "claude-opus-4-6"}}
+        result = statusline._calculate_entry_cost(entry, self._PRICING)
+        assert result == 0.0
+
+    def test_missing_cache_tokens_defaults_to_zero(self) -> None:
+        """キャッシュトークンがない場合は0として計算する"""
+        entry = {
+            "message": {
+                "model": "claude-opus-4-6",
+                "usage": {
+                    "input_tokens": 1000,
+                    "output_tokens": 500,
+                },
+            },
+        }
+        # 1000 * 0.000015 + 500 * 0.000075 = 0.015 + 0.0375 = 0.0525
+        result = statusline._calculate_entry_cost(entry, self._PRICING)
+        assert result == 0.0525
