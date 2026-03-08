@@ -28,7 +28,6 @@ from datetime import UTC, datetime
 from enum import IntEnum
 from pathlib import Path
 from typing import Any
-from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 
@@ -220,7 +219,7 @@ def _write_cache(cache_path: Path, cache_obj: dict[str, Any]) -> None:
                 Path(tmp_name).unlink()
 
 
-def _cached_fetch(  # pyright: ignore[reportUnusedFunction] 後続タスクで使用予定
+def _cached_fetch(
     cache_path: Path,
     ttl: int,
     fetch_fn: Callable[[], Any],
@@ -282,50 +281,24 @@ def _get_exchange_rate(currency: str) -> float | None:
     if currency == "USD":
         return None
 
-    now = datetime.now(UTC).timestamp()
-    cached_rate: float | None = None
-
-    # キャッシュチェック
-    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
-        cache_text = _EXCHANGE_CACHE_PATH.read_text(encoding="utf-8")
-        cache_obj = json.loads(cache_text)
-        if cache_obj.get("currency") == currency:
-            cached_rate = cache_obj.get("rate")
-            if (
-                now - cache_obj.get("_cached_at", 0) < _EXCHANGE_CACHE_TTL
-                and cached_rate is not None
-            ):
-                return float(cached_rate)
-
-    # API呼び出し
-    try:
+    def fetch() -> float:
         url = _EXCHANGE_API_URL.format(currency=currency)
         req = Request(url, headers={"User-Agent": "statusline/1.0"})  # noqa: S310
         with urlopen(req, timeout=_API_TIMEOUT) as resp:  # noqa: S310
             body = resp.read().decode("utf-8")
-        rates = json.loads(body).get("rates", {})
-        rate = rates.get(currency)
+        rate = json.loads(body).get("rates", {}).get(currency)
         if rate is None:
-            return float(cached_rate) if cached_rate is not None else None
-    except URLError, json.JSONDecodeError, OSError, TimeoutError:
-        return float(cached_rate) if cached_rate is not None else None
+            msg = f"rate not found for {currency}"
+            raise ValueError(msg)
+        return float(rate)
 
-    # atomic writeでキャッシュ保存
-    cache_obj = {"_cached_at": now, "currency": currency, "rate": rate}
-    with contextlib.suppress(OSError):
-        tmp_fd, tmp_name = tempfile.mkstemp(
-            dir=_EXCHANGE_CACHE_PATH.parent, suffix=".tmp", prefix="claude-exchange-"
-        )
-        try:
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                json.dump(cache_obj, f)
-            Path(tmp_name).replace(_EXCHANGE_CACHE_PATH)
-            _EXCHANGE_CACHE_PATH.chmod(0o600)
-        except OSError:
-            with contextlib.suppress(OSError):
-                Path(tmp_name).unlink()
-
-    return float(rate)
+    result = _cached_fetch(
+        _EXCHANGE_CACHE_PATH,
+        _EXCHANGE_CACHE_TTL,
+        fetch,
+        cache_key={"currency": currency},
+    )
+    return float(result) if result is not None else None
 
 
 def _get_cwd(data: dict[str, Any]) -> str:
@@ -523,47 +496,59 @@ def _get_usage() -> dict[str, Any] | None:
     Returns:
         使用状況の辞書、取得できない場合はNone
     """
-    # キャッシュチェック
-    now = datetime.now(UTC).timestamp()
-    cached_data = None
-    with contextlib.suppress(
-        OSError, json.JSONDecodeError, KeyError, TypeError, AttributeError
-    ):
-        cache_text = _CACHE_PATH.read_text(encoding="utf-8")
-        cache_obj = json.loads(cache_text)
-        cached_ts = cache_obj.get("_cached_at", 0)
-        cached_data = cache_obj.get("data")
-        if now - cached_ts < _CACHE_TTL and cached_data is not None:
-            return cached_data
 
-    # API呼び出し
-    token = _get_oauth_token()
-    if token is None:
-        return cached_data  # トークンがない場合は期限切れキャッシュを返す
+    def fetch() -> dict[str, Any]:
+        token = _get_oauth_token()
+        if token is None:
+            raise RuntimeError
+        return _fetch_usage(token)
 
-    try:
-        data = _fetch_usage(token)
-    except URLError, json.JSONDecodeError, OSError, TimeoutError:
-        return cached_data  # API失敗時は期限切れキャッシュを返す
+    return _cached_fetch(_CACHE_PATH, _CACHE_TTL, fetch)
 
-    # atomic writeでキャッシュ保存
-    cache_obj = {"_cached_at": now, "data": data}
-    with contextlib.suppress(OSError):
-        tmp_fd, tmp_name = tempfile.mkstemp(
-            dir=_CACHE_PATH.parent, suffix=".tmp", prefix="claude-usage-"
+
+def _fetch_git_info(cwd: str) -> dict[str, Any]:
+    """Gitのブランチ名とリモートURLを取得する"""
+    info: dict[str, Any] = {}
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],  # noqa: S607
+        capture_output=True,
+        text=True,
+        cwd=cwd or None,
+        timeout=3,
+        check=False,
+    )
+    branch = result.stdout.strip() if result.returncode == 0 else ""
+
+    if branch == "HEAD":
+        # Detached HEAD状態では短縮コミットハッシュを取得する
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            cwd=cwd or None,
+            timeout=3,
+            check=False,
         )
-        try:
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                json.dump(cache_obj, f)
-            # Windowsではreplaceが安全に動作する(Python 3.3+)
-            Path(tmp_name).replace(_CACHE_PATH)
-            _CACHE_PATH.chmod(0o600)
-        except OSError:
-            # 書き込み失敗時はtmpファイルを削除する
-            with contextlib.suppress(OSError):
-                Path(tmp_name).unlink()
+        branch = result.stdout.strip()
 
-    return data
+    if not branch:
+        raise RuntimeError
+
+    info["branch"] = branch
+
+    # リモートURLを取得する
+    result = subprocess.run(
+        ["git", "remote", "get-url", "origin"],  # noqa: S607
+        capture_output=True,
+        text=True,
+        cwd=cwd or None,
+        timeout=3,
+        check=False,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        info["remote_url"] = result.stdout.strip()
+
+    return info
 
 
 def _get_git_info(cwd: str) -> dict[str, Any] | None:
@@ -572,78 +557,12 @@ def _get_git_info(cwd: str) -> dict[str, Any] | None:
     キャッシュのTTLは_GIT_CACHE_TTL秒である
     cwdが変わった場合はキャッシュを無効化する
     """
-    now = datetime.now(UTC).timestamp()
-
-    # キャッシュチェック
-    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
-        cache_text = _GIT_CACHE_PATH.read_text(encoding="utf-8")
-        cache_obj = json.loads(cache_text)
-        if (
-            cache_obj.get("cwd") == cwd
-            and now - cache_obj.get("_cached_at", 0) < _GIT_CACHE_TTL
-        ):
-            return cache_obj.get("data")
-
-    # Git情報を取得する
-    info: dict[str, Any] = {}
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],  # noqa: S607
-            capture_output=True,
-            text=True,
-            cwd=cwd or None,
-            timeout=3,
-            check=False,
-        )
-        branch = result.stdout.strip() if result.returncode == 0 else ""
-
-        if branch == "HEAD":
-            # Detached HEAD状態では短縮コミットハッシュを取得する
-            result = subprocess.run(
-                ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
-                capture_output=True,
-                text=True,
-                cwd=cwd or None,
-                timeout=3,
-                check=False,
-            )
-            branch = result.stdout.strip()
-
-        if not branch:
-            return None
-
-        info["branch"] = branch
-
-        # リモートURLを取得する
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],  # noqa: S607
-            capture_output=True,
-            text=True,
-            cwd=cwd or None,
-            timeout=3,
-            check=False,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            info["remote_url"] = result.stdout.strip()
-
-    except subprocess.TimeoutExpired, subprocess.SubprocessError, OSError:
-        return None
-
-    # キャッシュ保存
-    cache_obj = {"_cached_at": now, "cwd": cwd, "data": info}
-    with contextlib.suppress(OSError):
-        tmp_fd, tmp_name = tempfile.mkstemp(
-            dir=_GIT_CACHE_PATH.parent, suffix=".tmp", prefix="claude-git-"
-        )
-        try:
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                json.dump(cache_obj, f)
-            Path(tmp_name).replace(_GIT_CACHE_PATH)
-        except OSError:
-            with contextlib.suppress(OSError):
-                Path(tmp_name).unlink()
-
-    return info
+    return _cached_fetch(
+        _GIT_CACHE_PATH,
+        _GIT_CACHE_TTL,
+        lambda: _fetch_git_info(cwd),
+        cache_key={"cwd": cwd},
+    )
 
 
 def _seg_project(data: dict[str, Any]) -> Segment | None:
