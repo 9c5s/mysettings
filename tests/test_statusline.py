@@ -4,13 +4,11 @@
 # pyright: reportPrivateUsage=false
 
 import json
-import os
 import sys
 import time
-import uuid as uuid_mod
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, ClassVar, Never
+from typing import Any, Never
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 
@@ -206,7 +204,13 @@ class TestGetExchangeRate:
     def test_returns_cached_rate(self, tmp_path: Path) -> None:
         """有効なキャッシュからレートを返す"""
         cache_file = tmp_path / "exchange-cache.json"
-        cache_data = {"_cached_at": time.time(), "data": 149.0, "currency": "JPY"}
+        today = datetime.now().astimezone().strftime("%Y-%m-%d")
+        cache_data = {
+            "_cached_at": time.time(),
+            "data": 149.0,
+            "currency": "JPY",
+            "date": today,
+        }
         cache_file.write_text(json.dumps(cache_data))
 
         with patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file):
@@ -216,7 +220,13 @@ class TestGetExchangeRate:
     def test_api_failure_returns_expired_cache(self, tmp_path: Path) -> None:
         """API失敗時は期限切れキャッシュを返す"""
         cache_file = tmp_path / "exchange-cache.json"
-        cache_data = {"_cached_at": 0, "data": 148.0, "currency": "JPY"}
+        today = datetime.now().astimezone().strftime("%Y-%m-%d")
+        cache_data = {
+            "_cached_at": 0,
+            "data": 148.0,
+            "currency": "JPY",
+            "date": today,
+        }
         cache_file.write_text(json.dumps(cache_data))
 
         with (
@@ -257,7 +267,13 @@ class TestGetExchangeRate:
     def test_different_currency_invalidates_cache(self, tmp_path: Path) -> None:
         """キャッシュの通貨が異なる場合はAPIから取得する"""
         cache_file = tmp_path / "exchange-cache.json"
-        cache_data = {"_cached_at": time.time(), "data": 0.92, "currency": "EUR"}
+        today = datetime.now().astimezone().strftime("%Y-%m-%d")
+        cache_data = {
+            "_cached_at": time.time(),
+            "data": 0.92,
+            "currency": "EUR",
+            "date": today,
+        }
         cache_file.write_text(json.dumps(cache_data))
 
         mock_resp = MagicMock()
@@ -584,7 +600,12 @@ class TestGetSupportedCurrencies:
     def test_returns_cached_currencies(self, tmp_path: Path) -> None:
         """キャッシュから通貨リストを返す"""
         cache_file = tmp_path / "currencies-cache.json"
-        cache_data = {"_cached_at": time.time(), "data": ["JPY", "USD", "EUR"]}
+        today = datetime.now().astimezone().strftime("%Y-%m-%d")
+        cache_data = {
+            "_cached_at": time.time(),
+            "data": ["JPY", "USD", "EUR"],
+            "date": today,
+        }
         cache_file.write_text(json.dumps(cache_data))
         with patch.object(statusline, "_CURRENCIES_CACHE_PATH", cache_file):
             result = statusline._get_supported_currencies()
@@ -1699,433 +1720,73 @@ class TestGetGitInfo:
         assert result == {"branch": "new-branch"}
 
 
-class TestGetModelPricing:
-    """_get_model_pricing のテスト"""
-
-    def test_fetches_and_filters_claude_models(self, tmp_path: Path) -> None:
-        """LiteLLM APIからClaudeモデルのみフィルタして料金を返す"""
-        cache_file = tmp_path / "pricing-cache.json"
-        api_response = json.dumps({
-            "claude-opus-4-6": {
-                "input_cost_per_token": 0.000015,
-                "output_cost_per_token": 0.000075,
-                "cache_creation_input_token_cost": 0.00001875,
-                "cache_read_input_token_cost": 0.0000015,
-            },
-            "gpt-4o": {
-                "input_cost_per_token": 0.000005,
-                "output_cost_per_token": 0.000015,
-            },
-            "claude-sonnet-4-5-20250514": {
-                "input_cost_per_token": 0.000003,
-                "output_cost_per_token": 0.000015,
-            },
-        }).encode()
-
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = api_response
-        mock_resp.__enter__.return_value = mock_resp
-        mock_resp.__exit__.return_value = None
-
-        with (
-            patch.object(statusline, "_PRICING_CACHE_PATH", cache_file),
-            patch("statusline.urlopen", return_value=mock_resp),
-        ):
-            result = statusline._get_model_pricing()
-
-        assert result is not None
-        # Claudeモデルのみ含まれる
-        assert "claude-opus-4-6" in result
-        assert "claude-sonnet-4-5-20250514" in result
-        # GPTモデルは除外される
-        assert "gpt-4o" not in result
-
-    def test_extracts_pricing_fields(self, tmp_path: Path) -> None:
-        """各モデルからinput/output/cache_write/cache_readの4フィールドを抽出する"""
-        cache_file = tmp_path / "pricing-cache.json"
-        api_response = json.dumps({
-            "claude-opus-4-6": {
-                "input_cost_per_token": 0.000015,
-                "output_cost_per_token": 0.000075,
-                "cache_creation_input_token_cost": 0.00001875,
-                "cache_read_input_token_cost": 0.0000015,
-                "max_tokens": 32000,
-                "litellm_provider": "anthropic",
-            },
-        }).encode()
-
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = api_response
-        mock_resp.__enter__.return_value = mock_resp
-        mock_resp.__exit__.return_value = None
-
-        with (
-            patch.object(statusline, "_PRICING_CACHE_PATH", cache_file),
-            patch("statusline.urlopen", return_value=mock_resp),
-        ):
-            result = statusline._get_model_pricing()
-
-        assert result is not None
-        model = result["claude-opus-4-6"]
-        assert model["input_cost_per_token"] == 0.000015
-        assert model["output_cost_per_token"] == 0.000075
-        assert model["cache_creation_input_token_cost"] == 0.00001875
-        assert model["cache_read_input_token_cost"] == 0.0000015
-        # 不要なフィールドは含まれない
-        assert "max_tokens" not in model
-        assert "litellm_provider" not in model
-
-    def test_api_failure_returns_expired_cache(self, tmp_path: Path) -> None:
-        """API取得失敗時はキャッシュからフォールバックする"""
-        cache_file = tmp_path / "pricing-cache.json"
-        cached_pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
-        cache_data = {"_cached_at": 0, "data": cached_pricing}
-        cache_file.write_text(json.dumps(cache_data))
-
-        with (
-            patch.object(statusline, "_PRICING_CACHE_PATH", cache_file),
-            patch("statusline.urlopen", side_effect=URLError("fail")),
-        ):
-            result = statusline._get_model_pricing()
-
-        assert result is not None
-        assert "claude-opus-4-6" in result
-
-    def test_api_failure_no_cache_returns_none(self, tmp_path: Path) -> None:
-        """API取得失敗かつキャッシュなしの場合はNoneを返す"""
-        cache_file = tmp_path / "nonexistent-pricing.json"
-
-        with (
-            patch.object(statusline, "_PRICING_CACHE_PATH", cache_file),
-            patch("statusline.urlopen", side_effect=URLError("fail")),
-        ):
-            result = statusline._get_model_pricing()
-
-        assert result is None
-
-    def test_returns_cached_data_within_ttl(self, tmp_path: Path) -> None:
-        """TTL内のキャッシュを返す"""
-        cache_file = tmp_path / "pricing-cache.json"
-        cached_pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
-        cache_data = {"_cached_at": time.time(), "data": cached_pricing}
-        cache_file.write_text(json.dumps(cache_data))
-
-        with patch.object(statusline, "_PRICING_CACHE_PATH", cache_file):
-            result = statusline._get_model_pricing()
-
-        assert result is not None
-        assert result["claude-opus-4-6"]["input_cost_per_token"] == 0.000015
-
-
-class TestScanDailyCost:
-    """_scan_daily_cost のテスト"""
-
-    def _make_jsonl_entry(
-        self,
-        *,
-        cost_usd: float | None = None,
-        model: str = "claude-opus-4-6",
-        input_tokens: int = 100,
-        output_tokens: int = 50,
-        timestamp: str | None = None,
-    ) -> str:
-        """テスト用のJONLエントリを生成する"""
-        entry: dict[str, Any] = {"uuid": str(uuid_mod.uuid4())}
-        if cost_usd is not None:
-            entry["costUSD"] = cost_usd
-        if timestamp is not None:
-            entry["timestamp"] = timestamp
-        entry["message"] = {
-            "model": model,
-            "usage": {
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-            },
-        }
-        return json.dumps(entry)
-
-    def test_aggregates_today_files(self, tmp_path: Path) -> None:
-        """今日のmtimeを持つJSONLファイルからコストを集計する"""
-        projects_dir = tmp_path / "projects"
-        project_dir = projects_dir / "myproject"
-        project_dir.mkdir(parents=True)
-
-        jsonl = project_dir / "session1.jsonl"
-        jsonl.write_text(
-            self._make_jsonl_entry(cost_usd=0.10)
-            + "\n"
-            + self._make_jsonl_entry(cost_usd=0.20)
-            + "\n"
-        )
-
-        pricing = {
-            "claude-opus-4-6": {
-                "input_cost_per_token": 0.000015,
-                "output_cost_per_token": 0.000075,
-            },
-        }
-
-        with (
-            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
-            patch("statusline._get_model_pricing", return_value=pricing),
-        ):
-            result = statusline._scan_daily_cost()
-
-        assert abs(result - 0.30) < 1e-10
-
-    def test_skips_lines_without_input_tokens(self, tmp_path: Path) -> None:
-        """input_tokensを含まない行はスキップする"""
-        projects_dir = tmp_path / "projects"
-        project_dir = projects_dir / "myproject"
-        project_dir.mkdir(parents=True)
-
-        jsonl = project_dir / "session1.jsonl"
-        jsonl.write_text(
-            '{"type":"summary","text":"hello"}\n'
-            + self._make_jsonl_entry(cost_usd=0.50)
-            + "\n"
-        )
-
-        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
-
-        with (
-            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
-            patch("statusline._get_model_pricing", return_value=pricing),
-        ):
-            result = statusline._scan_daily_cost()
-
-        assert abs(result - 0.50) < 1e-10
-
-    def test_skips_invalid_json_lines(self, tmp_path: Path) -> None:
-        """不正なJSON行はスキップする"""
-        projects_dir = tmp_path / "projects"
-        project_dir = projects_dir / "myproject"
-        project_dir.mkdir(parents=True)
-
-        jsonl = project_dir / "session1.jsonl"
-        jsonl.write_text(
-            "{invalid json with input_tokens\n"
-            + self._make_jsonl_entry(cost_usd=0.25)
-            + "\n"
-        )
-
-        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
-
-        with (
-            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
-            patch("statusline._get_model_pricing", return_value=pricing),
-        ):
-            result = statusline._scan_daily_cost()
-
-        assert abs(result - 0.25) < 1e-10
-
-    def test_no_projects_dir_returns_zero(self, tmp_path: Path) -> None:
-        """プロジェクトディレクトリが存在しない場合は0.0を返す"""
-        projects_dir = tmp_path / "nonexistent"
-
-        with (
-            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
-            patch(
-                "statusline._get_model_pricing",
-                return_value={"claude-opus-4-6": {}},
-            ),
-        ):
-            result = statusline._scan_daily_cost()
-
-        assert result == 0.0
-
-    def test_skips_old_files(self, tmp_path: Path) -> None:
-        """mtimeが今日でないファイルはスキップする"""
-        projects_dir = tmp_path / "projects"
-        project_dir = projects_dir / "myproject"
-        project_dir.mkdir(parents=True)
-
-        jsonl = project_dir / "old_session.jsonl"
-        jsonl.write_text(self._make_jsonl_entry(cost_usd=1.00) + "\n")
-        # mtimeを昨日に設定する
-        old_time = time.time() - 86400 * 2
-        os.utime(jsonl, (old_time, old_time))
-
-        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
-
-        with (
-            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
-            patch("statusline._get_model_pricing", return_value=pricing),
-        ):
-            result = statusline._scan_daily_cost()
-
-        assert result == 0.0
-
-    def test_skips_entries_with_old_timestamp(self, tmp_path: Path) -> None:
-        """timestampが今日でないエントリはスキップする"""
-        projects_dir = tmp_path / "projects"
-        project_dir = projects_dir / "myproject"
-        project_dir.mkdir(parents=True)
-
-        now_iso = datetime.now(UTC).isoformat()
-        yesterday_iso = "2020-01-01T12:00:00Z"
-
-        jsonl = project_dir / "session1.jsonl"
-        jsonl.write_text(
-            self._make_jsonl_entry(cost_usd=0.10, timestamp=now_iso)
-            + "\n"
-            + self._make_jsonl_entry(cost_usd=0.90, timestamp=yesterday_iso)
-            + "\n"
-        )
-
-        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
-
-        with (
-            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
-            patch("statusline._get_model_pricing", return_value=pricing),
-        ):
-            result = statusline._scan_daily_cost()
-
-        assert abs(result - 0.10) < 1e-10
-
-    def test_includes_entries_without_timestamp(self, tmp_path: Path) -> None:
-        """timestampがないエントリはフォールバックで集計する"""
-        projects_dir = tmp_path / "projects"
-        project_dir = projects_dir / "myproject"
-        project_dir.mkdir(parents=True)
-
-        jsonl = project_dir / "session1.jsonl"
-        jsonl.write_text(self._make_jsonl_entry(cost_usd=0.50) + "\n")
-
-        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
-
-        with (
-            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
-            patch("statusline._get_model_pricing", return_value=pricing),
-        ):
-            result = statusline._scan_daily_cost()
-
-        assert abs(result - 0.50) < 1e-10
-
-    def test_deduplicates_by_request_id(self, tmp_path: Path) -> None:
-        """同一requestIdのエントリは最後の1件のみカウントする"""
-        projects_dir = tmp_path / "projects"
-        project_dir = projects_dir / "myproject"
-        project_dir.mkdir(parents=True)
-
-        # 同一requestIdで複数エントリ(ストリーミング更新をシミュレート)
-        entry_base = {
-            "requestId": "req_123",
-            "message": {
-                "model": "claude-opus-4-6",
-                "usage": {"input_tokens": 100, "output_tokens": 10},
-            },
-            "costUSD": 0.50,
-        }
-        entry_final = {**entry_base, "costUSD": 0.80}
-
-        jsonl = project_dir / "session1.jsonl"
-        jsonl.write_text(
-            json.dumps(entry_base)
-            + "\n"
-            + json.dumps(entry_base)
-            + "\n"
-            + json.dumps(entry_final)
-            + "\n"
-        )
-
-        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
-
-        with (
-            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
-            patch("statusline._get_model_pricing", return_value=pricing),
-        ):
-            result = statusline._scan_daily_cost()
-
-        # 最後のエントリの0.80のみカウントされる(0.50+0.50+0.80=1.80ではない)
-        assert abs(result - 0.80) < 1e-10
-
-    def test_different_request_ids_counted_separately(self, tmp_path: Path) -> None:
-        """異なるrequestIdのエントリはそれぞれカウントする"""
-        projects_dir = tmp_path / "projects"
-        project_dir = projects_dir / "myproject"
-        project_dir.mkdir(parents=True)
-
-        entry_a = {
-            "requestId": "req_aaa",
-            "message": {
-                "model": "claude-opus-4-6",
-                "usage": {"input_tokens": 100, "output_tokens": 10},
-            },
-            "costUSD": 0.30,
-        }
-        entry_b = {
-            "requestId": "req_bbb",
-            "message": {
-                "model": "claude-opus-4-6",
-                "usage": {"input_tokens": 100, "output_tokens": 10},
-            },
-            "costUSD": 0.20,
-        }
-
-        jsonl = project_dir / "session1.jsonl"
-        jsonl.write_text(json.dumps(entry_a) + "\n" + json.dumps(entry_b) + "\n")
-
-        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
-
-        with (
-            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
-            patch("statusline._get_model_pricing", return_value=pricing),
-        ):
-            result = statusline._scan_daily_cost()
-
-        assert abs(result - 0.50) < 1e-10
-
-    def test_pricing_none_returns_zero(self, tmp_path: Path) -> None:
-        """料金データ取得失敗時は0.0を返す"""
-        projects_dir = tmp_path / "projects"
-        project_dir = projects_dir / "myproject"
-        project_dir.mkdir(parents=True)
-
-        jsonl = project_dir / "session1.jsonl"
-        jsonl.write_text(self._make_jsonl_entry(cost_usd=0.50) + "\n")
-
-        with (
-            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
-            patch("statusline._get_model_pricing", return_value=None),
-        ):
-            result = statusline._scan_daily_cost()
-
-        assert result == 0.0
-
-
 class TestGetDailyCost:
     """_get_daily_cost のテスト"""
 
-    def test_returns_cached_daily_cost(self, tmp_path: Path) -> None:
-        """キャッシュ付きでデイリーコストを返す"""
-        cache_file = tmp_path / "daily-cost-cache.json"
-        today = datetime.now().astimezone().strftime("%Y-%m-%d")
-        cache_data = {"_cached_at": time.time(), "data": 1.23, "date": today}
-        cache_file.write_text(json.dumps(cache_data))
+    def _make_data(self, total_cost_usd: float) -> dict[str, Any]:
+        """テスト用のstdinデータを生成する"""
+        return {"cost": {"total_cost_usd": total_cost_usd}}
+
+    def test_returns_zero_on_first_call(self, tmp_path: Path) -> None:
+        """初回呼び出しでベースラインを記録し0.0を返す"""
+        cache_file = tmp_path / "daily-cost.json"
+        data = self._make_data(10.0)
 
         with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
-            result = statusline._get_daily_cost()
+            result = statusline._get_daily_cost(data)
 
-        assert result == 1.23
+        assert result == 0.0
+        # ベースラインが記録されている
+        cache_obj = json.loads(cache_file.read_text())
+        assert cache_obj["baseline_cost"] == 10.0
 
-    def test_date_change_invalidates_cache(self, tmp_path: Path) -> None:
-        """日付が変わるとキャッシュが無効化される"""
-        cache_file = tmp_path / "daily-cost-cache.json"
-        cache_data = {
-            "_cached_at": time.time(),
-            "data": 1.23,
-            "date": "1999-01-01",
-        }
-        cache_file.write_text(json.dumps(cache_data))
+    def test_returns_diff_from_baseline(self, tmp_path: Path) -> None:
+        """ベースラインとの差分を返す"""
+        cache_file = tmp_path / "daily-cost.json"
+        today = datetime.now().astimezone().strftime("%Y-%m-%d")
+        cache_file.write_text(json.dumps({"date": today, "baseline_cost": 5.0}))
+        data = self._make_data(8.50)
 
-        with (
-            patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file),
-            patch("statusline._scan_daily_cost", return_value=5.67),
-        ):
-            result = statusline._get_daily_cost()
+        with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
+            result = statusline._get_daily_cost(data)
 
-        assert result == 5.67
+        assert result is not None
+        assert abs(result - 3.50) < 1e-10
+
+    def test_date_change_resets_baseline(self, tmp_path: Path) -> None:
+        """日付が変わるとベースラインをリセットする"""
+        cache_file = tmp_path / "daily-cost.json"
+        cache_file.write_text(json.dumps({"date": "1999-01-01", "baseline_cost": 5.0}))
+        data = self._make_data(20.0)
+
+        with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
+            result = statusline._get_daily_cost(data)
+
+        assert result == 0.0
+        # 新しいベースラインが記録されている
+        cache_obj = json.loads(cache_file.read_text())
+        assert cache_obj["baseline_cost"] == 20.0
+
+    def test_returns_none_without_cost_data(self) -> None:
+        """costデータがない場合はNoneを返す"""
+        result = statusline._get_daily_cost({})
+        assert result is None
+
+    def test_returns_none_without_total_cost_usd(self) -> None:
+        """total_cost_usdがない場合はNoneを返す"""
+        result = statusline._get_daily_cost({"cost": {}})
+        assert result is None
+
+    def test_handles_corrupt_cache(self, tmp_path: Path) -> None:
+        """破損したキャッシュファイルの場合は新しいベースラインを記録する"""
+        cache_file = tmp_path / "daily-cost.json"
+        cache_file.write_text("not valid json")
+        data = self._make_data(15.0)
+
+        with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
+            result = statusline._get_daily_cost(data)
+
+        assert result == 0.0
 
 
 class TestSegDailyCost:
@@ -2172,80 +1833,6 @@ class TestSegDailyCost:
         fn_names = [fn.__name__ for fn in cost_line.segment_fns]
         assert "_seg_session_cost" in fn_names
         assert "_seg_daily_cost" in fn_names
-
-
-class TestCalculateEntryCost:
-    """_calculate_entry_cost のテスト"""
-
-    _PRICING: ClassVar[dict[str, Any]] = {
-        "claude-opus-4-6": {
-            "input_cost_per_token": 0.000015,
-            "output_cost_per_token": 0.000075,
-            "cache_creation_input_token_cost": 0.00001875,
-            "cache_read_input_token_cost": 0.0000015,
-        },
-    }
-
-    def test_cost_usd_field_is_preferred(self) -> None:
-        """costUSDフィールドがあればそれを返す"""
-        entry = {"costUSD": 0.42}
-        result = statusline._calculate_entry_cost(entry, self._PRICING)
-        assert result == 0.42
-
-    def test_calculates_from_tokens(self) -> None:
-        """costUSDがない場合はトークン数と料金テーブルから計算する"""
-        entry = {
-            "message": {
-                "model": "claude-opus-4-6",
-                "usage": {
-                    "input_tokens": 1000,
-                    "output_tokens": 500,
-                    "cache_creation_input_tokens": 200,
-                    "cache_read_input_tokens": 100,
-                },
-            },
-        }
-        # 1000 * 0.000015 + 500 * 0.000075 + 200 * 0.00001875 + 100 * 0.0000015
-        # = 0.015 + 0.0375 + 0.00375 + 0.00015 = 0.0564
-        result = statusline._calculate_entry_cost(entry, self._PRICING)
-        assert abs(result - 0.0564) < 1e-10
-
-    def test_model_not_in_pricing_returns_zero(self) -> None:
-        """料金テーブルにモデルがない場合は0.0を返す"""
-        entry = {
-            "message": {
-                "model": "unknown-model",
-                "usage": {"input_tokens": 1000, "output_tokens": 500},
-            },
-        }
-        result = statusline._calculate_entry_cost(entry, self._PRICING)
-        assert result == 0.0
-
-    def test_no_message_returns_zero(self) -> None:
-        """messageキーがない場合は0.0を返す"""
-        result = statusline._calculate_entry_cost({}, self._PRICING)
-        assert result == 0.0
-
-    def test_no_usage_returns_zero(self) -> None:
-        """message.usageがない場合は0.0を返す"""
-        entry = {"message": {"model": "claude-opus-4-6"}}
-        result = statusline._calculate_entry_cost(entry, self._PRICING)
-        assert result == 0.0
-
-    def test_missing_cache_tokens_defaults_to_zero(self) -> None:
-        """キャッシュトークンがない場合は0として計算する"""
-        entry = {
-            "message": {
-                "model": "claude-opus-4-6",
-                "usage": {
-                    "input_tokens": 1000,
-                    "output_tokens": 500,
-                },
-            },
-        }
-        # 1000 * 0.000015 + 500 * 0.000075 = 0.015 + 0.0375 = 0.0525
-        result = statusline._calculate_entry_cost(entry, self._PRICING)
-        assert result == 0.0525
 
 
 class TestParseSegments:
