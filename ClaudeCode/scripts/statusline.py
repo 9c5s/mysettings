@@ -75,6 +75,7 @@ _GIT_CACHE_TTL = 5  # 秒
 _GIT_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-git-cache.json"
 _EXCHANGE_CACHE_TTL = 86400  # 24時間
 _EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-exchange-cache.json"
+_SESSION_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-session-cost.json"
 _EXCHANGE_API_URL = "https://api.frankfurter.app/latest?from=USD&to={currency}"
 _CURRENCIES_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-currencies-cache.json"
 _CURRENCIES_API_URL = "https://api.frankfurter.app/currencies"
@@ -883,19 +884,47 @@ def _format_cost(cost_usd: float) -> str:
     return f"{info.symbol}{converted:.{info.decimals}f}"
 
 
-def _seg_cost(data: dict[str, Any]) -> Segment | None:
-    """セッションコストセグメントを生成する"""
-    cost = data.get("cost")
-    if not isinstance(cost, dict):
-        return None
+def _get_session_cost(data: dict[str, Any]) -> float | None:
+    """セッション単位のコストを算出する
 
-    total_cost = cost.get("total_cost_usd")
+    total_cost_usdはセッションを跨いでも累積されるため、
+    セッション開始時のコストをベースラインとして記録し、
+    差分を現在のセッションコストとして返す
+    """
+    cost = data.get("cost")
+    total_cost = cost.get("total_cost_usd") if isinstance(cost, dict) else None
     if total_cost is None:
         return None
 
     try:
-        cost_val = float(total_cost)
+        total_cost_val = float(total_cost)
     except ValueError, TypeError:
+        return None
+
+    session_id = data.get("session_id")
+    if not session_id:
+        return total_cost_val
+
+    # セッションキャッシュを読み込む
+    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
+        cache_text = _SESSION_COST_CACHE_PATH.read_text(encoding="utf-8")
+        cache_obj = json.loads(cache_text)
+        if cache_obj.get("session_id") == session_id:
+            baseline = float(cache_obj.get("baseline_cost", 0.0))
+            return total_cost_val - baseline
+
+    # 新しいセッション: 現在のコストをベースラインとして記録する
+    _write_cache(
+        _SESSION_COST_CACHE_PATH,
+        {"session_id": session_id, "baseline_cost": total_cost_val},
+    )
+    return 0.0
+
+
+def _seg_cost(data: dict[str, Any]) -> Segment | None:
+    """セッションコストセグメントを生成する"""
+    cost_val = _get_session_cost(data)
+    if cost_val is None:
         return None
 
     label = f"{_icons.MONEY} {_format_cost(cost_val)}"

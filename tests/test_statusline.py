@@ -333,6 +333,74 @@ class TestSegCost:
         assert seg is None
 
 
+class TestGetSessionCost:
+    """_get_session_cost のテスト"""
+
+    def test_no_cost_data_returns_none(self) -> None:
+        """costキーがない場合はNone"""
+        assert statusline._get_session_cost({}) is None
+
+    def test_no_total_cost_returns_none(self) -> None:
+        """total_cost_usdがない場合はNone"""
+        assert statusline._get_session_cost({"cost": {}}) is None
+
+    def test_non_numeric_cost_returns_none(self) -> None:
+        """数値変換できないtotal_cost_usdはNone"""
+        assert statusline._get_session_cost({"cost": {"total_cost_usd": "abc"}}) is None
+
+    def test_no_session_id_returns_total_cost(self) -> None:
+        """session_idがない場合はtotal_cost_usdをそのまま返す"""
+        result = statusline._get_session_cost({"cost": {"total_cost_usd": 1.23}})
+        assert result == 1.23
+
+    def test_new_session_returns_zero(self, tmp_path: Path) -> None:
+        """新しいセッションではベースラインを記録し0.0を返す"""
+        cache_path = tmp_path / "session-cost.json"
+        with patch.object(statusline, "_SESSION_COST_CACHE_PATH", cache_path):
+            data = {
+                "session_id": "session-1",
+                "cost": {"total_cost_usd": 5.00},
+            }
+            result = statusline._get_session_cost(data)
+        assert result == 0.0
+        # キャッシュにベースラインが記録されている
+        cache_obj = json.loads(cache_path.read_text(encoding="utf-8"))
+        assert cache_obj["session_id"] == "session-1"
+        assert cache_obj["baseline_cost"] == 5.00
+
+    def test_same_session_returns_delta(self, tmp_path: Path) -> None:
+        """同一セッションでは累積コストとの差分を返す"""
+        cache_path = tmp_path / "session-cost.json"
+        cache_path.write_text(
+            json.dumps({"session_id": "session-1", "baseline_cost": 5.00})
+        )
+        with patch.object(statusline, "_SESSION_COST_CACHE_PATH", cache_path):
+            data = {
+                "session_id": "session-1",
+                "cost": {"total_cost_usd": 6.50},
+            }
+            result = statusline._get_session_cost(data)
+        assert result == 1.50
+
+    def test_session_change_resets_baseline(self, tmp_path: Path) -> None:
+        """セッションが変わるとベースラインがリセットされる"""
+        cache_path = tmp_path / "session-cost.json"
+        cache_path.write_text(
+            json.dumps({"session_id": "session-1", "baseline_cost": 5.00})
+        )
+        with patch.object(statusline, "_SESSION_COST_CACHE_PATH", cache_path):
+            data = {
+                "session_id": "session-2",
+                "cost": {"total_cost_usd": 10.00},
+            }
+            result = statusline._get_session_cost(data)
+        assert result == 0.0
+        # 新しいセッションのベースラインが記録されている
+        cache_obj = json.loads(cache_path.read_text(encoding="utf-8"))
+        assert cache_obj["session_id"] == "session-2"
+        assert cache_obj["baseline_cost"] == 10.00
+
+
 class TestCachedFetch:
     """_cached_fetch のテスト"""
 
@@ -1234,9 +1302,16 @@ class TestBuildLines:
         # 1行目: project | branch
         assert "\u2502" in lines[0]
 
-    def test_with_full_stdin_sample(self) -> None:
+    def test_with_full_stdin_sample(self, tmp_path: Path) -> None:
         """実際のstdinデータ構造で_build_linesが正常に動作する"""
-        with patch.object(statusline, "_currency", "USD"):
+        cache_path = tmp_path / "session-cost.json"
+        cache_path.write_text(
+            json.dumps({"session_id": "abc123...", "baseline_cost": 0.0})
+        )
+        with (
+            patch.object(statusline, "_currency", "USD"),
+            patch.object(statusline, "_SESSION_COST_CACHE_PATH", cache_path),
+        ):
             lines = statusline._build_lines(dict(_FULL_STDIN_SAMPLE))
         # stdinデータのみ(runtime注入なし)で3行: project, model+context, cost
         assert len(lines) == 3
