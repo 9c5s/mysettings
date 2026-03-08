@@ -53,4 +53,4 @@ pre-commit:
           [[ "$b" != test_* ]] && b="test_$b"
           [ -f "tests/$b" ] && echo "tests/$b"
         done | sort -u)
-        ${t:+uv run -p 3.14 pytest -q $t}
+        ${t:+uv run pytest -q $t}
