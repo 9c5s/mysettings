@@ -1,0 +1,8 @@
+[run]
+source = ClaudeCode/scripts
+omit = */__pycache__/*
+
+[report]
+show_missing = true
+exclude_lines =
+    if __name__ == "__main__"
