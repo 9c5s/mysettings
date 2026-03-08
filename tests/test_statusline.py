@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import time
+import uuid as uuid_mod
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar, Never
@@ -1829,7 +1830,7 @@ class TestScanDailyCost:
         timestamp: str | None = None,
     ) -> str:
         """テスト用のJONLエントリを生成する"""
-        entry: dict[str, Any] = {}
+        entry: dict[str, Any] = {"uuid": str(uuid_mod.uuid4())}
         if cost_usd is not None:
             entry["costUSD"] = cost_usd
         if timestamp is not None:
@@ -1990,6 +1991,80 @@ class TestScanDailyCost:
 
         jsonl = project_dir / "session1.jsonl"
         jsonl.write_text(self._make_jsonl_entry(cost_usd=0.50) + "\n")
+
+        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
+
+        with (
+            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
+            patch("statusline._get_model_pricing", return_value=pricing),
+        ):
+            result = statusline._scan_daily_cost()
+
+        assert abs(result - 0.50) < 1e-10
+
+    def test_deduplicates_by_request_id(self, tmp_path: Path) -> None:
+        """同一requestIdのエントリは最後の1件のみカウントする"""
+        projects_dir = tmp_path / "projects"
+        project_dir = projects_dir / "myproject"
+        project_dir.mkdir(parents=True)
+
+        # 同一requestIdで複数エントリ(ストリーミング更新をシミュレート)
+        entry_base = {
+            "requestId": "req_123",
+            "message": {
+                "model": "claude-opus-4-6",
+                "usage": {"input_tokens": 100, "output_tokens": 10},
+            },
+            "costUSD": 0.50,
+        }
+        entry_final = {**entry_base, "costUSD": 0.80}
+
+        jsonl = project_dir / "session1.jsonl"
+        jsonl.write_text(
+            json.dumps(entry_base)
+            + "\n"
+            + json.dumps(entry_base)
+            + "\n"
+            + json.dumps(entry_final)
+            + "\n"
+        )
+
+        pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
+
+        with (
+            patch.object(statusline, "_CLAUDE_PROJECTS_DIR", projects_dir),
+            patch("statusline._get_model_pricing", return_value=pricing),
+        ):
+            result = statusline._scan_daily_cost()
+
+        # 最後のエントリの0.80のみカウントされる(0.50+0.50+0.80=1.80ではない)
+        assert abs(result - 0.80) < 1e-10
+
+    def test_different_request_ids_counted_separately(self, tmp_path: Path) -> None:
+        """異なるrequestIdのエントリはそれぞれカウントする"""
+        projects_dir = tmp_path / "projects"
+        project_dir = projects_dir / "myproject"
+        project_dir.mkdir(parents=True)
+
+        entry_a = {
+            "requestId": "req_aaa",
+            "message": {
+                "model": "claude-opus-4-6",
+                "usage": {"input_tokens": 100, "output_tokens": 10},
+            },
+            "costUSD": 0.30,
+        }
+        entry_b = {
+            "requestId": "req_bbb",
+            "message": {
+                "model": "claude-opus-4-6",
+                "usage": {"input_tokens": 100, "output_tokens": 10},
+            },
+            "costUSD": 0.20,
+        }
+
+        jsonl = project_dir / "session1.jsonl"
+        jsonl.write_text(json.dumps(entry_a) + "\n" + json.dumps(entry_b) + "\n")
 
         pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
 

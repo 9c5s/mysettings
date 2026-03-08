@@ -426,13 +426,15 @@ def _scan_daily_cost() -> float:
 
     ~/.claude/projects/以下の*.jsonlを走査し、
     mtimeが今日のファイルを対象にエントリのtimestampで日付フィルタする
+    同一requestIdのエントリは最後の1件のみカウントする
+    (ストリーミング応答で同じusageが複数回記録されるため)
     """
     pricing = _get_model_pricing()
     if pricing is None:
         return 0.0
 
     today = datetime.now().astimezone().date()
-    total = 0.0
+    cost_by_request: dict[str, float] = {}
 
     if not _CLAUDE_PROJECTS_DIR.is_dir():
         return 0.0
@@ -460,9 +462,10 @@ def _scan_daily_cost() -> float:
                             and _parse_iso_to_local(ts).date() != today
                         ):
                             continue
-                        total += _calculate_entry_cost(entry, pricing)
+                        req_id = entry.get("requestId") or entry.get("uuid", "")
+                        cost_by_request[req_id] = _calculate_entry_cost(entry, pricing)
 
-    return total
+    return sum(cost_by_request.values())
 
 
 def _get_daily_cost() -> float | None:
