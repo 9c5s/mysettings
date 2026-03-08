@@ -1405,6 +1405,29 @@ class TestBuildLines:
         # 1行目: project | branch
         assert "\u2502" in lines[0]
 
+    def test_custom_lines_config(self) -> None:
+        """カスタムlines構成で指定セグメントのみ出力する"""
+        data = {
+            "cwd": "/home/user/project",
+            "model": {"display_name": "Opus", "id": "claude-opus-4-6"},
+        }
+        custom_lines = statusline._parse_segments("model")
+        lines = statusline._build_lines(data, custom_lines)
+        assert len(lines) == 1
+        assert "Opus" in lines[0]
+
+    def test_custom_lines_excludes_unspecified(self) -> None:
+        """指定されていないセグメントは出力に含まれない"""
+        data = {
+            "cwd": "/home/user/project",
+            "_git": {"branch": "main"},
+            "model": {"display_name": "Opus", "id": "claude-opus-4-6"},
+        }
+        custom_lines = statusline._parse_segments("model")
+        lines = statusline._build_lines(data, custom_lines)
+        assert len(lines) == 1
+        assert "main" not in lines[0]
+
     def test_with_full_stdin_sample(self, tmp_path: Path) -> None:
         """実際のstdinデータ構造で_build_linesが正常に動作する"""
         cache_path = tmp_path / "session-cost.json"

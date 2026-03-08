@@ -1088,18 +1088,25 @@ def _render_line(segments: list[Segment]) -> str:
     return sep.join(s.text for s in segments)
 
 
-def _build_lines(data: dict[str, Any]) -> list[str]:
+def _build_lines(
+    data: dict[str, Any],
+    lines: list[_LineConfig] | None = None,
+) -> list[str]:
     """行定義に従ってステータスラインを構築する
 
     Args:
         data: stdinから読み込んだJSON辞書(+ _usageキー)
+        lines: 行構成リスト。Noneの場合はデフォルト構成を使用する
 
     Returns:
         表示用の文字列リスト(各要素が1行)
     """
+    if lines is None:
+        lines = _parse_segments(_DEFAULT_SEGMENTS)
+
     output_lines: list[str] = []
 
-    for line_cfg in _parse_segments(_DEFAULT_SEGMENTS):
+    for line_cfg in lines:
         segments: list[Segment] = []
         for fn in line_cfg.segment_fns:
             seg = fn(data)
@@ -1223,7 +1230,8 @@ def main() -> None:
     if usage is not None:
         data["_usage"] = usage
 
-    lines = _build_lines(data)
+    lines_config = _parse_segments(args.segments)
+    lines = _build_lines(data, lines_config)
     if lines:
         print("\n".join(lines))
 
