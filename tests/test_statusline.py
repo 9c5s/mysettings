@@ -165,6 +165,22 @@ class TestGetExchangeRate:
             rate = statusline._get_exchange_rate("JPY")
         assert rate is None
 
+    def test_rate_not_found_returns_none(self, tmp_path: Path) -> None:
+        """APIレスポンスにrateが含まれない場合はNoneを返す"""
+        cache_file = tmp_path / "nonexistent-cache.json"
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b'{"rates":{}}'
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = None
+
+        with (
+            patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", return_value=mock_resp),
+        ):
+            rate = statusline._get_exchange_rate("JPY")
+        assert rate is None
+
     def test_different_currency_invalidates_cache(self, tmp_path: Path) -> None:
         """キャッシュの通貨が異なる場合はAPIから取得する"""
         cache_file = tmp_path / "exchange-cache.json"
@@ -259,6 +275,11 @@ class TestSegCost:
         seg = statusline._seg_cost({"cost": {}})
         assert seg is None
 
+    def test_non_numeric_cost_returns_none(self) -> None:
+        """数値変換できないtotal_cost_usdの場合はNone"""
+        seg = statusline._seg_cost({"cost": {"total_cost_usd": "abc"}})
+        assert seg is None
+
 
 class TestCachedFetch:
     """_cached_fetch のテスト"""
@@ -351,6 +372,21 @@ class TestCachedFetch:
         cache_file.write_text(json.dumps(cache_data))
         result = statusline._cached_fetch(cache_file, 60, lambda: None)
         assert result == {"expired": True}
+
+
+class TestWriteCache:
+    """_write_cache のテスト"""
+
+    def test_cleans_tmp_on_replace_failure(self, tmp_path: Path) -> None:
+        """replace()失敗時にtmpファイルを削除する"""
+        cache_file = tmp_path / "test-cache.json"
+
+        with patch.object(Path, "replace", side_effect=OSError("mock failure")):
+            statusline._write_cache(cache_file, {"key": "value"})
+
+        # tmpファイルが残っていないことを確認する
+        tmp_files = list(tmp_path.glob("claude-cache-*.tmp"))
+        assert tmp_files == []
 
 
 class TestGetSupportedCurrencies:
@@ -495,6 +531,18 @@ class TestExtractVersion:
     def test_single_version_number(self) -> None:
         """メジャーバージョンのみ"""
         assert statusline._extract_version("claude-opus-4") == "4"
+
+    def test_date_only_id_returns_empty(self) -> None:
+        """日付のみのIDは空文字列を返す"""
+        assert statusline._extract_version("claude-opus-20250514") == ""
+
+    def test_non_digit_after_digit_stops(self) -> None:
+        """数字の後に非数字が来たらそこで終了する"""
+        assert statusline._extract_version("claude-opus-4-beta") == "4"
+
+    def test_no_digit_parts_returns_empty(self) -> None:
+        """数字パーツがない場合は空文字列を返す"""
+        assert statusline._extract_version("claude-opus-abc") == ""
 
 
 class TestRemoteToHttps:
@@ -902,6 +950,11 @@ class TestSegContext:
         assert seg is not None
         assert "\033[32m" in seg.text
 
+    def test_non_numeric_percentage_returns_none(self) -> None:
+        """数値変換できないused_percentageの場合はNone"""
+        data = {"context_window": {"used_percentage": "abc"}}
+        assert statusline._seg_context(data) is None
+
 
 class TestSegLines:
     """_seg_lines のテスト"""
@@ -937,6 +990,11 @@ class TestSegLines:
         assert seg is not None
         assert "\033[32m+1\033[0m" in seg.text
         assert "\033[31m-1\033[0m" in seg.text
+
+    def test_non_numeric_lines_returns_none(self) -> None:
+        """数値変換できないline数の場合はNone"""
+        data = {"cost": {"total_lines_added": "abc", "total_lines_removed": 0}}
+        assert statusline._seg_lines(data) is None
 
 
 class TestSegRateCommon:
@@ -1008,6 +1066,21 @@ class TestSegRateCommon:
             )
         assert seg is not None
         assert "\033[31m" in seg.text
+
+    def test_non_numeric_utilization_returns_none(self) -> None:
+        """数値変換できないutilizationの場合はNone"""
+        data = {
+            "_usage": {
+                "five_hour": {
+                    "utilization": "abc",
+                    "resets_at": "2025-01-15T14:30:00Z",
+                },
+            },
+        }
+        seg = statusline._seg_rate_common(
+            data, "five_hour", "5h", "\u23f0", statusline._format_reset_time_short
+        )
+        assert seg is None
 
 
 class TestSegRate5hAnd7d:
@@ -1207,7 +1280,7 @@ class TestFetchUsage:
         """ネットワークエラー時は例外を送出する"""
         with (
             patch("statusline.urlopen", side_effect=URLError("fail")),
-            pytest.raises(URLError),
+            pytest.raises(URLError, match="fail"),
         ):
             statusline._fetch_usage("token")
 
