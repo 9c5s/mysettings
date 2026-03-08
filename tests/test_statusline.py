@@ -1995,8 +1995,9 @@ class TestSegDailyCost:
         assert "¥150" in seg.text
 
     def test_layout_cost_line_has_daily_cost(self) -> None:
-        """_LINESの3行目に_seg_daily_costが含まれる"""
-        cost_line = statusline._LINES[2]
+        """デフォルトセグメントの3行目に_seg_daily_costが含まれる"""
+        lines = statusline._parse_segments(statusline._DEFAULT_SEGMENTS)
+        cost_line = lines[2]
         fn_names = [fn.__name__ for fn in cost_line.segment_fns]
         assert "_seg_session_cost" in fn_names
         assert "_seg_daily_cost" in fn_names
@@ -2074,3 +2075,57 @@ class TestCalculateEntryCost:
         # 1000 * 0.000015 + 500 * 0.000075 = 0.015 + 0.0375 = 0.0525
         result = statusline._calculate_entry_cost(entry, self._PRICING)
         assert result == 0.0525
+
+
+class TestParseSegments:
+    """_parse_segments のテスト"""
+
+    def test_single_segment(self) -> None:
+        """単一セグメントを1行にパースする"""
+        lines = statusline._parse_segments("project")
+        assert len(lines) == 1
+        assert len(lines[0].segment_fns) == 1
+
+    def test_multiple_segments_one_line(self) -> None:
+        """カンマ区切りで1行内に複数セグメントをパースする"""
+        lines = statusline._parse_segments("project,branch,model")
+        assert len(lines) == 1
+        assert len(lines[0].segment_fns) == 3
+
+    def test_multiple_lines(self) -> None:
+        """パイプ区切りで複数行にパースする"""
+        lines = statusline._parse_segments("project,branch|model,context")
+        assert len(lines) == 2
+        assert len(lines[0].segment_fns) == 2
+        assert len(lines[1].segment_fns) == 2
+
+    def test_unknown_segment_skipped(self) -> None:
+        """不明なセグメント名は無視してスキップする"""
+        lines = statusline._parse_segments("project,unknown_seg,branch")
+        assert len(lines) == 1
+        assert len(lines[0].segment_fns) == 2
+
+    def test_all_unknown_produces_empty_line(self) -> None:
+        """全て不明なセグメント名の行は空になり除外される"""
+        lines = statusline._parse_segments("xxx,yyy|project")
+        assert len(lines) == 1
+
+    def test_default_segments_match_original(self) -> None:
+        """デフォルト文字列が旧_LINESと同じ構成を生成する"""
+        lines = statusline._parse_segments(statusline._DEFAULT_SEGMENTS)
+        assert len(lines) == 3
+        assert len(lines[0].segment_fns) == 2  # project, branch
+        assert len(lines[1].segment_fns) == 4  # model, context, rate_5h, rate_7d
+        assert len(lines[2].segment_fns) == 2  # session_cost, daily_cost
+
+    def test_whitespace_trimmed(self) -> None:
+        """セグメント名前後の空白は除去される"""
+        lines = statusline._parse_segments(" project , branch | model ")
+        assert len(lines) == 2
+        assert len(lines[0].segment_fns) == 2
+        assert len(lines[1].segment_fns) == 1
+
+    def test_empty_string_returns_empty(self) -> None:
+        """空文字列は空リストを返す"""
+        lines = statusline._parse_segments("")
+        assert len(lines) == 0
