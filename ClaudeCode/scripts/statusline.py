@@ -76,12 +76,7 @@ _GIT_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-git-cache.json"
 _EXCHANGE_CACHE_TTL = 86400  # 24時間
 _EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-exchange-cache.json"
 _SESSION_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-session-cost.json"
-_PRICING_CACHE_TTL = 86400  # 24時間
-_PRICING_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-pricing-cache.json"
-_PRICING_API_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
-_DAILY_COST_CACHE_TTL = 60  # 秒
-_DAILY_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-daily-cost-cache.json"
-_CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
+_DAILY_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-daily-cost.json"
 _EXCHANGE_API_URL = "https://api.frankfurter.app/latest?from=USD&to={currency}"
 _CURRENCIES_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-currencies-cache.json"
 _CURRENCIES_API_URL = "https://api.frankfurter.app/currencies"
@@ -333,11 +328,12 @@ def _get_exchange_rate(currency: str) -> float | None:
             raise ValueError(msg)
         return float(rate)
 
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
     result = _cached_fetch(
         _EXCHANGE_CACHE_PATH,
         _EXCHANGE_CACHE_TTL,
         fetch,
-        cache_key={"currency": currency},
+        cache_key={"currency": currency, "date": today},
     )
     return float(result) if result is not None else None
 
@@ -351,136 +347,48 @@ def _get_supported_currencies() -> list[str] | None:
             body = resp.read().decode("utf-8")
         return sorted(json.loads(body).keys())
 
-    return _cached_fetch(_CURRENCIES_CACHE_PATH, _EXCHANGE_CACHE_TTL, fetch)
-
-
-_PRICING_FIELDS = (
-    "input_cost_per_token",
-    "output_cost_per_token",
-    "cache_creation_input_token_cost",
-    "cache_read_input_token_cost",
-)
-
-
-def _get_model_pricing() -> dict[str, Any] | None:  # pyright: ignore[reportUnusedFunction] Task 3で使用する
-    """LiteLLMの料金データを取得しClaudeモデルのみフィルタする(キャッシュ付き)
-
-    各モデルからinput/output/cache_write/cache_readの単価を抽出する
-    TTLは_PRICING_CACHE_TTL秒(1日)である
-    """
-
-    def fetch() -> dict[str, Any]:
-        req = Request(_PRICING_API_URL, headers={"User-Agent": "statusline/1.0"})
-        with urlopen(req, timeout=_API_TIMEOUT) as resp:  # noqa: S310
-            body = resp.read().decode("utf-8")
-        all_models = json.loads(body)
-        filtered: dict[str, Any] = {}
-        for name, info in all_models.items():
-            if "claude" not in name or not isinstance(info, dict):
-                continue
-            filtered[name] = {k: info[k] for k in _PRICING_FIELDS if k in info}
-        return filtered
-
-    return _cached_fetch(_PRICING_CACHE_PATH, _PRICING_CACHE_TTL, fetch)
-
-
-def _calculate_entry_cost(entry: dict[str, Any], pricing: dict[str, Any]) -> float:
-    """JONLエントリ1件のコストを算出する
-
-    costUSDフィールドがあればそれを使用し、
-    なければトークン数と料金テーブルから計算する
-    """
-    cost_usd = entry.get("costUSD")
-    if cost_usd is not None:
-        return float(cost_usd)
-
-    message = entry.get("message")
-    if not isinstance(message, dict):
-        return 0.0
-
-    usage = message.get("usage")
-    if not isinstance(usage, dict):
-        return 0.0
-
-    model = message.get("model", "")
-    model_pricing = pricing.get(model)
-    if not isinstance(model_pricing, dict):
-        return 0.0
-
-    input_tokens = int(usage.get("input_tokens", 0))
-    output_tokens = int(usage.get("output_tokens", 0))
-    cache_creation = int(usage.get("cache_creation_input_tokens", 0))
-    cache_read = int(usage.get("cache_read_input_tokens", 0))
-
-    return (
-        input_tokens * float(model_pricing.get("input_cost_per_token", 0))
-        + output_tokens * float(model_pricing.get("output_cost_per_token", 0))
-        + cache_creation
-        * float(model_pricing.get("cache_creation_input_token_cost", 0))
-        + cache_read * float(model_pricing.get("cache_read_input_token_cost", 0))
-    )
-
-
-def _scan_daily_cost() -> float:
-    """今日のJONLファイルからデイリーコストを集計する
-
-    ~/.claude/projects/以下の*.jsonlを走査し、
-    mtimeが今日のファイルを対象にエントリのtimestampで日付フィルタする
-    同一requestIdのエントリは最後の1件のみカウントする
-    (ストリーミング応答で同じusageが複数回記録されるため)
-    """
-    pricing = _get_model_pricing()
-    if pricing is None:
-        return 0.0
-
-    today = datetime.now().astimezone().date()
-    cost_by_request: dict[str, float] = {}
-
-    if not _CLAUDE_PROJECTS_DIR.is_dir():
-        return 0.0
-
-    for jsonl_path in _CLAUDE_PROJECTS_DIR.rglob("*.jsonl"):
-        with contextlib.suppress(OSError):
-            mtime = (
-                datetime.fromtimestamp(jsonl_path.stat().st_mtime).astimezone().date()
-            )
-            if mtime != today:
-                continue
-
-            with jsonl_path.open(encoding="utf-8", errors="replace") as f:
-                for line in f:
-                    if "input_tokens" not in line:
-                        continue
-                    with contextlib.suppress(
-                        json.JSONDecodeError, ValueError, TypeError, KeyError
-                    ):
-                        entry = json.loads(line)
-                        ts = entry.get("timestamp")
-                        if (
-                            isinstance(ts, str)
-                            and ts
-                            and _parse_iso_to_local(ts).date() != today
-                        ):
-                            continue
-                        req_id = entry.get("requestId") or entry.get("uuid", "")
-                        cost_by_request[req_id] = _calculate_entry_cost(entry, pricing)
-
-    return sum(cost_by_request.values())
-
-
-def _get_daily_cost() -> float | None:
-    """キャッシュ付きでデイリーコストを取得する
-
-    TTLは_DAILY_COST_CACHE_TTL秒(60秒)。
-    日付のcache_keyで日替わりリセットする
-    """
     today = datetime.now().astimezone().strftime("%Y-%m-%d")
     return _cached_fetch(
-        _DAILY_COST_CACHE_PATH,
-        _DAILY_COST_CACHE_TTL,
-        _scan_daily_cost,
+        _CURRENCIES_CACHE_PATH,
+        _EXCHANGE_CACHE_TTL,
+        fetch,
         cache_key={"date": today},
     )
+
+
+def _get_daily_cost(data: dict[str, Any]) -> float | None:
+    """日次コストをtotal_cost_usdのベースライン方式で算出する
+
+    total_cost_usdはセッションを跨いで累積されるため、
+    日付が変わった時点のコストをベースラインとして記録し、
+    差分を当日のコストとして返す
+    """
+    cost = data.get("cost")
+    total_cost = cost.get("total_cost_usd") if isinstance(cost, dict) else None
+    if total_cost is None:
+        return None
+
+    try:
+        total_cost_val = float(total_cost)
+    except ValueError, TypeError:
+        return None
+
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
+
+    # デイリーキャッシュを読み込む
+    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
+        cache_text = _DAILY_COST_CACHE_PATH.read_text(encoding="utf-8")
+        cache_obj = json.loads(cache_text)
+        if cache_obj.get("date") == today:
+            baseline = float(cache_obj.get("baseline_cost", 0.0))
+            return total_cost_val - baseline
+
+    # 新しい日: 現在のコストをベースラインとして記録する
+    _write_cache(
+        _DAILY_COST_CACHE_PATH,
+        {"date": today, "baseline_cost": total_cost_val},
+    )
+    return 0.0
 
 
 def _get_cwd(data: dict[str, Any]) -> str:
@@ -1077,9 +985,9 @@ def _seg_session_cost(data: dict[str, Any]) -> Segment | None:
     return Segment(text=label)
 
 
-def _seg_daily_cost(data: dict[str, Any]) -> Segment | None:  # noqa: ARG001
+def _seg_daily_cost(data: dict[str, Any]) -> Segment | None:
     """デイリーコストセグメントを生成する"""
-    daily = _get_daily_cost()
+    daily = _get_daily_cost(data)
     if daily is None or daily <= 0.0:
         return None
 
