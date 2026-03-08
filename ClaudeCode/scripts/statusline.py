@@ -73,7 +73,6 @@ _API_URL = "https://api.anthropic.com/api/oauth/usage"
 _API_TIMEOUT = 5
 _GIT_CACHE_TTL = 5  # 秒
 _GIT_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-git-cache.json"
-_EXCHANGE_CACHE_TTL = 86400  # 24時間
 _EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-exchange-cache.json"
 _SESSION_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-session-cost.json"
 _DAILY_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-daily-cost.json"
@@ -263,13 +262,16 @@ def _cached_fetch(
 ) -> Any | None:  # noqa: ANN401
     """汎用キャッシュ付きデータ取得関数
 
-    キャッシュファイルからデータを読み取り、TTL内であれば返す
-    TTL切れまたはキャッシュなしの場合はfetch_fnを呼び出す
-    fetch_fn失敗時は期限切れキャッシュをフォールバックとして返す
+    キャッシュファイルからデータを読み取り、TTL内かつcache_keyが一致すれば返す
+    TTL切れ/キャッシュなし/cache_key不一致の場合はfetch_fnを呼び出す
+    fetch_fn失敗時はcache_keyが一致する期限切れキャッシュをフォールバックとして返す
+
+    cache_keyにdateを含めればTTLに頼らず日付変更で無効化できる
+    その場合ttlにsys.maxsizeを渡すことでTTLを実質無効にする
 
     Args:
         cache_path: キャッシュファイルのパス
-        ttl: キャッシュの有効期間(秒)
+        ttl: キャッシュの有効期間(秒)。sys.maxsizeで実質無効化
         fetch_fn: データ取得関数。成功時はデータを返し、失敗時は例外を送出する
         cache_key: キャッシュ有効性の追加判定キー。不一致時はキャッシュを無効化する
     """
@@ -331,7 +333,7 @@ def _get_exchange_rate(currency: str) -> float | None:
     today = datetime.now().astimezone().strftime("%Y-%m-%d")
     result = _cached_fetch(
         _EXCHANGE_CACHE_PATH,
-        _EXCHANGE_CACHE_TTL,
+        sys.maxsize,
         fetch,
         cache_key={"currency": currency, "date": today},
     )
@@ -350,7 +352,7 @@ def _get_supported_currencies() -> list[str] | None:
     today = datetime.now().astimezone().strftime("%Y-%m-%d")
     return _cached_fetch(
         _CURRENCIES_CACHE_PATH,
-        _EXCHANGE_CACHE_TTL,
+        sys.maxsize,
         fetch,
         cache_key={"date": today},
     )
