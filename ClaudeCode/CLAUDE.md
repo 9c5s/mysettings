@@ -54,6 +54,10 @@
 - ドキュメントを適切に記述する
 - パフォーマンスを意識する
 
+## コミット規約
+
+- Conventional Commits v1.0.0 (https://www.conventionalcommits.org/en/v1.0.0/) に準拠する
+
 ## プロジェクト設定
 
 - メインブランチ: main
