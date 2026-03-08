@@ -101,7 +101,7 @@ class TestGetExchangeRate:
     def test_returns_cached_rate(self, tmp_path):
         """有効なキャッシュからレートを返す"""
         cache_file = tmp_path / "exchange-cache.json"
-        cache_data = {"_cached_at": time.time(), "currency": "JPY", "rate": 149.0}
+        cache_data = {"_cached_at": time.time(), "data": 149.0, "currency": "JPY"}
         cache_file.write_text(json.dumps(cache_data))
 
         with patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file):
@@ -111,7 +111,7 @@ class TestGetExchangeRate:
     def test_api_failure_returns_expired_cache(self, tmp_path):
         """API失敗時は期限切れキャッシュを返す"""
         cache_file = tmp_path / "exchange-cache.json"
-        cache_data = {"_cached_at": 0, "currency": "JPY", "rate": 148.0}
+        cache_data = {"_cached_at": 0, "data": 148.0, "currency": "JPY"}
         cache_file.write_text(json.dumps(cache_data))
 
         with (
@@ -136,7 +136,7 @@ class TestGetExchangeRate:
     def test_different_currency_invalidates_cache(self, tmp_path):
         """キャッシュの通貨が異なる場合はAPIから取得する"""
         cache_file = tmp_path / "exchange-cache.json"
-        cache_data = {"_cached_at": time.time(), "currency": "EUR", "rate": 0.92}
+        cache_data = {"_cached_at": time.time(), "data": 0.92, "currency": "EUR"}
         cache_file.write_text(json.dumps(cache_data))
 
         mock_resp = MagicMock()
