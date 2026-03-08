@@ -110,6 +110,25 @@ class TestGetCurrencyFromLocale:
         with patch("statusline.locale.getlocale", side_effect=ValueError):
             assert statusline._get_currency_from_locale() == "USD"
 
+    def test_windows_japanese_locale(self) -> None:
+        """Windowsのフルネーム形式でもJPYを返す"""
+        with patch(
+            "statusline.locale.getlocale", return_value=("Japanese_Japan", "932")
+        ):
+            assert statusline._get_currency_from_locale() == "JPY"
+
+    def test_windows_german_locale(self) -> None:
+        """Windowsのドイツ語ロケールでもEURを返す"""
+        with patch(
+            "statusline.locale.getlocale", return_value=("German_Germany", "1252")
+        ):
+            assert statusline._get_currency_from_locale() == "EUR"
+
+    def test_windows_korean_locale(self) -> None:
+        """Windowsの韓国語ロケールでもKRWを返す"""
+        with patch("statusline.locale.getlocale", return_value=("Korean_Korea", "949")):
+            assert statusline._get_currency_from_locale() == "KRW"
+
     def test_locale_without_country(self) -> None:
         """国コードなしのロケールはUSDにフォールバックする"""
         with patch("statusline.locale.getlocale", return_value=("ja", "utf-8")):
