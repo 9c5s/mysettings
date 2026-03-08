@@ -1589,3 +1589,121 @@ class TestGetGitInfo:
         ):
             result = statusline._get_git_info("/new/path")
         assert result == {"branch": "new-branch"}
+
+
+class TestGetModelPricing:
+    """_get_model_pricing のテスト"""
+
+    def test_fetches_and_filters_claude_models(self, tmp_path: Path) -> None:
+        """LiteLLM APIからClaudeモデルのみフィルタして料金を返す"""
+        cache_file = tmp_path / "pricing-cache.json"
+        api_response = json.dumps({
+            "claude-opus-4-6": {
+                "input_cost_per_token": 0.000015,
+                "output_cost_per_token": 0.000075,
+                "cache_creation_input_token_cost": 0.00001875,
+                "cache_read_input_token_cost": 0.0000015,
+            },
+            "gpt-4o": {
+                "input_cost_per_token": 0.000005,
+                "output_cost_per_token": 0.000015,
+            },
+            "claude-sonnet-4-5-20250514": {
+                "input_cost_per_token": 0.000003,
+                "output_cost_per_token": 0.000015,
+            },
+        }).encode()
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = api_response
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = None
+
+        with (
+            patch.object(statusline, "_PRICING_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", return_value=mock_resp),
+        ):
+            result = statusline._get_model_pricing()
+
+        assert result is not None
+        # Claudeモデルのみ含まれる
+        assert "claude-opus-4-6" in result
+        assert "claude-sonnet-4-5-20250514" in result
+        # GPTモデルは除外される
+        assert "gpt-4o" not in result
+
+    def test_extracts_pricing_fields(self, tmp_path: Path) -> None:
+        """各モデルからinput/output/cache_write/cache_readの4フィールドを抽出する"""
+        cache_file = tmp_path / "pricing-cache.json"
+        api_response = json.dumps({
+            "claude-opus-4-6": {
+                "input_cost_per_token": 0.000015,
+                "output_cost_per_token": 0.000075,
+                "cache_creation_input_token_cost": 0.00001875,
+                "cache_read_input_token_cost": 0.0000015,
+                "max_tokens": 32000,
+                "litellm_provider": "anthropic",
+            },
+        }).encode()
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = api_response
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = None
+
+        with (
+            patch.object(statusline, "_PRICING_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", return_value=mock_resp),
+        ):
+            result = statusline._get_model_pricing()
+
+        assert result is not None
+        model = result["claude-opus-4-6"]
+        assert model["input_cost_per_token"] == 0.000015
+        assert model["output_cost_per_token"] == 0.000075
+        assert model["cache_creation_input_token_cost"] == 0.00001875
+        assert model["cache_read_input_token_cost"] == 0.0000015
+        # 不要なフィールドは含まれない
+        assert "max_tokens" not in model
+        assert "litellm_provider" not in model
+
+    def test_api_failure_returns_expired_cache(self, tmp_path: Path) -> None:
+        """API取得失敗時はキャッシュからフォールバックする"""
+        cache_file = tmp_path / "pricing-cache.json"
+        cached_pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
+        cache_data = {"_cached_at": 0, "data": cached_pricing}
+        cache_file.write_text(json.dumps(cache_data))
+
+        with (
+            patch.object(statusline, "_PRICING_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", side_effect=URLError("fail")),
+        ):
+            result = statusline._get_model_pricing()
+
+        assert result is not None
+        assert "claude-opus-4-6" in result
+
+    def test_api_failure_no_cache_returns_none(self, tmp_path: Path) -> None:
+        """API取得失敗かつキャッシュなしの場合はNoneを返す"""
+        cache_file = tmp_path / "nonexistent-pricing.json"
+
+        with (
+            patch.object(statusline, "_PRICING_CACHE_PATH", cache_file),
+            patch("statusline.urlopen", side_effect=URLError("fail")),
+        ):
+            result = statusline._get_model_pricing()
+
+        assert result is None
+
+    def test_returns_cached_data_within_ttl(self, tmp_path: Path) -> None:
+        """TTL内のキャッシュを返す"""
+        cache_file = tmp_path / "pricing-cache.json"
+        cached_pricing = {"claude-opus-4-6": {"input_cost_per_token": 0.000015}}
+        cache_data = {"_cached_at": time.time(), "data": cached_pricing}
+        cache_file.write_text(json.dumps(cache_data))
+
+        with patch.object(statusline, "_PRICING_CACHE_PATH", cache_file):
+            result = statusline._get_model_pricing()
+
+        assert result is not None
+        assert result["claude-opus-4-6"]["input_cost_per_token"] == 0.000015
