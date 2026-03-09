@@ -67,10 +67,11 @@ class _LineConfig:
 
 
 _SEPARATOR = " \u2502 "  # " │ "
-_CACHE_TTL = 360  # 秒
+_CACHE_TTL = 360  # 6分
 _CACHE_PATH = Path(tempfile.gettempdir()) / "claude-usage-cache.json"
 _API_URL = "https://api.anthropic.com/api/oauth/usage"
-_API_TIMEOUT = 5
+_API_TIMEOUT = 5  # 秒
+_SUBPROCESS_TIMEOUT = 3  # 秒
 _GIT_CACHE_TTL = 5  # 秒
 _GIT_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-git-cache.json"
 _EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-exchange-cache.json"
@@ -575,7 +576,7 @@ def _get_oauth_token() -> str | None:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=3,
+                timeout=_SUBPROCESS_TIMEOUT,
                 check=False,
             )
             if result.returncode == 0 and result.stdout.strip():
@@ -640,7 +641,7 @@ def _fetch_git_info(cwd: str) -> dict[str, Any]:
         capture_output=True,
         text=True,
         cwd=cwd or None,
-        timeout=3,
+        timeout=_SUBPROCESS_TIMEOUT,
         check=False,
     )
     branch = result.stdout.strip() if result.returncode == 0 else ""
@@ -652,7 +653,7 @@ def _fetch_git_info(cwd: str) -> dict[str, Any]:
             capture_output=True,
             text=True,
             cwd=cwd or None,
-            timeout=3,
+            timeout=_SUBPROCESS_TIMEOUT,
             check=False,
         )
         branch = result.stdout.strip()
@@ -668,7 +669,7 @@ def _fetch_git_info(cwd: str) -> dict[str, Any]:
         capture_output=True,
         text=True,
         cwd=cwd or None,
-        timeout=3,
+        timeout=_SUBPROCESS_TIMEOUT,
         check=False,
     )
     if result.returncode == 0 and result.stdout.strip():
@@ -973,9 +974,9 @@ def _format_cost(cost_usd: float) -> str:
 def _get_session_cost(data: dict[str, Any]) -> float | None:
     """セッション単位のコストを算出する
 
-    total_cost_usdはセッションを跨いでも累積されるため、
-    セッション開始時のコストをベースラインとして記録し、
-    差分を現在のセッションコストとして返す
+    total_cost_usdはセッションスコープ(各セッションで0から開始)であるが、
+    Claude Codeの再起動等でセッションIDが変わらずコストが引き継がれるケースに備え、
+    セッション開始時のコストをベースラインとして記録し差分を返す
     """
     cost = data.get("cost")
     total_cost = cost.get("total_cost_usd") if isinstance(cost, dict) else None
@@ -1022,7 +1023,7 @@ def _seg_daily_cost(data: dict[str, Any]) -> Segment | None:
     if daily is None or daily <= 0.0:
         return None
 
-    label = f"{_icons.CHART} {_format_cost(daily)}"
+    label = f"{_icons.MONEY} {_format_cost(daily)}"
     return Segment(text=label)
 
 
