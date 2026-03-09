@@ -429,15 +429,12 @@ class TestGetSessionCost:
         assert result == 0.0
         # キャッシュにベースラインが記録されている
         cache_obj = json.loads(cache_path.read_text(encoding="utf-8"))
-        assert cache_obj["session_id"] == "session-1"
-        assert cache_obj["baseline_cost"] == 5.00
+        assert cache_obj["sessions"]["session-1"] == 5.00
 
     def test_same_session_returns_delta(self, tmp_path: Path) -> None:
         """同一セッションでは累積コストとの差分を返す"""
         cache_path = tmp_path / "session-cost.json"
-        cache_path.write_text(
-            json.dumps({"session_id": "session-1", "baseline_cost": 5.00})
-        )
+        cache_path.write_text(json.dumps({"sessions": {"session-1": 5.00}}))
         with patch.object(statusline, "_SESSION_COST_CACHE_PATH", cache_path):
             data = {
                 "session_id": "session-1",
@@ -446,12 +443,10 @@ class TestGetSessionCost:
             result = statusline._get_session_cost(data)
         assert result == 1.50
 
-    def test_session_change_resets_baseline(self, tmp_path: Path) -> None:
-        """セッションが変わるとベースラインがリセットされる"""
+    def test_session_change_preserves_other_sessions(self, tmp_path: Path) -> None:
+        """別セッションが追加されても既存セッションのベースラインは保持される"""
         cache_path = tmp_path / "session-cost.json"
-        cache_path.write_text(
-            json.dumps({"session_id": "session-1", "baseline_cost": 5.00})
-        )
+        cache_path.write_text(json.dumps({"sessions": {"session-1": 5.00}}))
         with patch.object(statusline, "_SESSION_COST_CACHE_PATH", cache_path):
             data = {
                 "session_id": "session-2",
@@ -459,10 +454,10 @@ class TestGetSessionCost:
             }
             result = statusline._get_session_cost(data)
         assert result == 0.0
-        # 新しいセッションのベースラインが記録されている
+        # 両セッションのベースラインが保持されている
         cache_obj = json.loads(cache_path.read_text(encoding="utf-8"))
-        assert cache_obj["session_id"] == "session-2"
-        assert cache_obj["baseline_cost"] == 10.00
+        assert cache_obj["sessions"]["session-1"] == 5.00
+        assert cache_obj["sessions"]["session-2"] == 10.00
 
     def test_cost_not_dict_returns_none(self) -> None:
         """costがdictでない場合はNone"""
@@ -577,53 +572,6 @@ class TestWriteCache:
         assert tmp_files == []
 
 
-class TestGetSupportedCurrencies:
-    """_get_supported_currencies のテスト"""
-
-    def test_fetches_from_api(self, tmp_path: Path) -> None:
-        """APIから通貨リストを取得する"""
-        cache_file = tmp_path / "currencies-cache.json"
-        mock_resp = _mock_http_response(
-            b'{"AUD":"Australian Dollar",'
-            b'"JPY":"Japanese Yen",'
-            b'"USD":"United States Dollar"}'
-        )
-
-        with (
-            patch.object(statusline, "_CURRENCIES_CACHE_PATH", cache_file),
-            patch("statusline.urlopen", return_value=mock_resp),
-        ):
-            result = statusline._get_supported_currencies()
-        assert result is not None
-        assert "JPY" in result
-        assert "USD" in result
-
-    def test_returns_cached_currencies(self, tmp_path: Path) -> None:
-        """キャッシュから通貨リストを返す"""
-        cache_file = tmp_path / "currencies-cache.json"
-        today = datetime.now().astimezone().strftime("%Y-%m-%d")
-        cache_data = {
-            "_cached_at": time.time(),
-            "data": ["JPY", "USD", "EUR"],
-            "date": today,
-        }
-        cache_file.write_text(json.dumps(cache_data))
-        with patch.object(statusline, "_CURRENCIES_CACHE_PATH", cache_file):
-            result = statusline._get_supported_currencies()
-        assert result is not None
-        assert "JPY" in result
-
-    def test_api_failure_returns_none(self, tmp_path: Path) -> None:
-        """API失敗かつキャッシュなしの場合はNoneを返す"""
-        cache_file = tmp_path / "nonexistent.json"
-        with (
-            patch.object(statusline, "_CURRENCIES_CACHE_PATH", cache_file),
-            patch("statusline.urlopen", side_effect=Exception("fail")),
-        ):
-            result = statusline._get_supported_currencies()
-        assert result is None
-
-
 class TestParseArgs:
     """_parse_args のテスト"""
 
@@ -683,40 +631,23 @@ class TestResolveCurrency:
     """_resolve_currency のテスト"""
 
     def test_valid_currency_from_arg(self) -> None:
-        """CLI引数の通貨がAPI対応なら採用"""
-        with patch(
-            "statusline._get_supported_currencies", return_value=["JPY", "USD", "EUR"]
-        ):
-            assert statusline._resolve_currency("JPY") == "JPY"
+        """CLI引数の通貨がローカル定義にあれば採用"""
+        assert statusline._resolve_currency("JPY") == "JPY"
 
     def test_invalid_currency_from_arg_falls_back_to_locale(self) -> None:
-        """CLI引数の通貨がAPI非対応ならロケール判定"""
-        with (
-            patch("statusline._get_supported_currencies", return_value=["JPY", "USD"]),
-            patch("statusline._get_currency_from_locale", return_value="JPY"),
-        ):
+        """CLI引数の通貨がローカル定義にないならロケール判定"""
+        with patch("statusline._get_currency_from_locale", return_value="JPY"):
             assert statusline._resolve_currency("XYZ") == "JPY"
 
     def test_none_currency_uses_locale(self) -> None:
         """通貨未指定ならロケール判定"""
-        with (
-            patch("statusline._get_supported_currencies", return_value=["JPY", "USD"]),
-            patch("statusline._get_currency_from_locale", return_value="JPY"),
-        ):
+        with patch("statusline._get_currency_from_locale", return_value="JPY"):
             assert statusline._resolve_currency(None) == "JPY"
 
     def test_locale_currency_not_supported_falls_back_to_usd(self) -> None:
-        """ロケール通貨がAPI非対応ならUSD"""
-        with (
-            patch("statusline._get_supported_currencies", return_value=["USD", "EUR"]),
-            patch("statusline._get_currency_from_locale", return_value="XYZ"),
-        ):
+        """ロケール通貨がローカル定義にないならUSD"""
+        with patch("statusline._get_currency_from_locale", return_value="XYZ"):
             assert statusline._resolve_currency(None) == "USD"
-
-    def test_api_failure_falls_back_to_usd(self) -> None:
-        """API対応通貨リスト取得失敗時はUSD"""
-        with patch("statusline._get_supported_currencies", return_value=None):
-            assert statusline._resolve_currency("JPY") == "USD"
 
 
 class TestExtractVersion:
@@ -1416,9 +1347,7 @@ class TestBuildLines:
     def test_with_full_stdin_sample(self, tmp_path: Path) -> None:
         """実際のstdinデータ構造で_build_linesが正常に動作する"""
         cache_path = tmp_path / "session-cost.json"
-        cache_path.write_text(
-            json.dumps({"session_id": "abc123...", "baseline_cost": 0.0})
-        )
+        cache_path.write_text(json.dumps({"sessions": {"abc123...": 0.0}}))
         with (
             patch.object(statusline, "_currency", "USD"),
             patch.object(statusline, "_SESSION_COST_CACHE_PATH", cache_path),
