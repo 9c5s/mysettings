@@ -58,6 +58,29 @@ class _LineConfig:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _CurrencyInfo:
+    """通貨のフォーマット情報"""
+
+    symbol: str
+    decimals: int
+
+
+@dataclass(frozen=True, slots=True)
+class _Icons:
+    """アイコンセットの定義"""
+
+    FOLDER: str = "📁"
+    BRANCH: str = "🔀"
+    MODEL: str = "🤖"
+    CHART: str = "📊"
+    PENCIL: str = "✏️"
+    CLOCK: str = "⏰"
+    CALENDAR: str = "📅"
+    RESET: str = "🔁"
+    MONEY: str = "💰"
+
+
 _SEPARATOR = " \u2502 "  # " │ "
 _CACHE_TTL = 360  # 6分
 _CACHE_PATH = Path(tempfile.gettempdir()) / "claude-usage-cache.json"
@@ -72,15 +95,6 @@ _DAILY_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-daily-cost.json"
 _EXCHANGE_API_URL = "https://api.frankfurter.app/latest?from=USD&to={currency}"
 _CURRENCIES_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-currencies-cache.json"
 _CURRENCIES_API_URL = "https://api.frankfurter.app/currencies"
-
-
-@dataclass(frozen=True, slots=True)
-class _CurrencyInfo:
-    """通貨のフォーマット情報"""
-
-    symbol: str
-    decimals: int
-
 
 _CURRENCIES: dict[str, _CurrencyInfo] = {
     "USD": _CurrencyInfo(symbol="$", decimals=2),
@@ -159,22 +173,6 @@ _LOCALE_TO_CURRENCY: dict[str, str] = {
     "ZA": "ZAR",
 }
 
-
-@dataclass(frozen=True, slots=True)
-class _Icons:
-    """アイコンセットの定義"""
-
-    FOLDER: str = "📁"
-    BRANCH: str = "🔀"
-    MODEL: str = "🤖"
-    CHART: str = "📊"
-    PENCIL: str = "✏️"
-    CLOCK: str = "⏰"
-    CALENDAR: str = "📅"
-    RESET: str = "🔁"
-    MONEY: str = "💰"
-
-
 _ICONS_NERD = _Icons(
     FOLDER="\uf07b",  # nf-fa-folder
     BRANCH="\ue725",  # nf-dev-git_branch
@@ -191,35 +189,122 @@ _icons: _Icons = _Icons()
 _currency: str = "USD"
 
 
-def _get_currency_from_locale() -> str:
-    """システムロケールから通貨コードを判定する
+def _today() -> str:
+    """今日の日付をYYYY-MM-DD形式で返す"""
+    return datetime.now().astimezone().strftime("%Y-%m-%d")
 
-    ロケール文字列から国コードを抽出し、対応する通貨コードを返す
-    POSIX形式(ja_JP)とWindowsフルネーム形式(Japanese_Japan)の両方に対応する
-    判定できない場合はUSDを返す
-    """
+
+def _safe_float(value: object) -> float | None:
+    """値をfloatに安全に変換する"""
     try:
-        loc, _ = locale.getlocale()
-    except ValueError:
-        return "USD"
-    if not loc:
-        return "USD"
-    parts = loc.split("_")
+        return float(value)  # type: ignore[arg-type]
+    except ValueError, TypeError:
+        return None
+
+
+def _safe_int(value: object) -> int | None:
+    """値をintに安全に変換する"""
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except ValueError, TypeError:
+        return None
+
+
+def _colorize(text: str, color: _Color) -> str:
+    """テキストにANSIカラーエスケープを付与する"""
+    return f"\033[{color.value}m{text}\033[0m"
+
+
+def _color_for_utilization(pct: float) -> _Color:
+    """利用率に応じたカラーを返す
+
+    0-59%: GREEN, 60-79%: YELLOW, 80-100%: RED
+    """
+    if pct >= 80:
+        return _Color.RED
+    if pct >= 60:
+        return _Color.YELLOW
+    return _Color.GREEN
+
+
+def _parse_iso_to_local(iso_str: str) -> datetime:
+    """ISO 8601文字列をローカルタイムゾーンのdatetimeに変換する"""
+    dt = datetime.fromisoformat(iso_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone()
+
+
+def _format_reset_time_short(iso_str: str) -> str:
+    """リセット時刻を "H:MM" 形式でフォーマットする(0埋めなし)"""
+    local_dt = _parse_iso_to_local(iso_str)
+    return f"{local_dt.hour}:{local_dt.minute:02d}"
+
+
+def _format_reset_date(iso_str: str) -> str:
+    """リセット時刻を "M/D H:MM" 形式でフォーマットする(0埋めなし)"""
+    local_dt = _parse_iso_to_local(iso_str)
+    return f"{local_dt.month}/{local_dt.day} {local_dt.hour}:{local_dt.minute:02d}"
+
+
+def _osc8_link(url: str, text: str) -> str:
+    """OSC 8エスケープシーケンスでクリッカブルリンクを生成する
+
+    対応ターミナル(iTerm2, Kitty, WezTerm等)ではCtrl+クリックで開ける
+    非対応ターミナルでは通常テキストとして表示される
+    """
+    return f"\033]8;;{url}\a{text}\033]8;;\a"
+
+
+def _remote_to_https(remote_url: str) -> str | None:
+    """GitリモートURLをHTTPS URLに変換する
+
+    SSH形式(git@github.com:user/repo.git)とHTTPS形式の両方に対応する
+    """
+    url = remote_url.strip()
+    if url.startswith("git@"):
+        # git@github.com:user/repo.git -> https://github.com/user/repo
+        url = url.replace(":", "/", 1).replace("git@", "https://", 1)
+    url = url.removesuffix(".git")
+    if url.startswith("https://"):
+        return url
+    return None
+
+
+def _extract_version(model_id: str) -> str:
+    """モデルIDからバージョン文字列を抽出する
+
+    "claude-opus-4-6" -> "4.6"
+    "claude-sonnet-4-5-20250514" -> "4.5"
+    "claude-haiku-3-5-20241022" -> "3.5"
+    """
+    # "claude-" プレフィクスを除去
+    rest = model_id.removeprefix("claude-")
+
+    # モデルファミリー名を除去(opus, sonnet, haikuなど)
+    parts = rest.split("-")
     if len(parts) < 2:
-        return "USD"
-    # POSIX形式: "ja_JP" -> "JP", "en_US" -> "US"
-    country = parts[1].split(".")[0].upper()
-    currency = _LOCALE_TO_CURRENCY.get(country)
-    if not currency:
-        # Windowsフルネーム形式のフォールバック:
-        # 言語名からlocale_aliasでPOSIXロケールを推定する
-        # 例: "Japanese" -> "ja_JP.eucJP" -> "JP"
-        alias = locale.locale_alias.get(parts[0].lower(), "")
-        alias_parts = alias.split("_")
-        if len(alias_parts) >= 2:
-            country = alias_parts[1].split(".")[0].upper()
-        currency = _LOCALE_TO_CURRENCY.get(country)
-    return currency or "USD"
+        return ""
+
+    # ファミリー名以降で数字部分を探す
+    digit_parts: list[str] = []
+    found_digit = False
+    for part in parts[1:]:
+        if part.isdigit():
+            if len(part) >= 4:
+                break  # 日付文字列(20240229等)はバージョンではないためスキップ
+            found_digit = True
+            digit_parts.append(part)
+            # メジャー.マイナーの2つまで取得する
+            if len(digit_parts) >= 2:
+                break
+        elif found_digit:
+            break  # 数字の連続が途切れたら終了
+
+    if not digit_parts:
+        return ""
+
+    return ".".join(digit_parts)
 
 
 def _cache_key_matches(
@@ -294,25 +379,35 @@ def _cached_fetch(
     return data
 
 
-def _today() -> str:
-    """今日の日付をYYYY-MM-DD形式で返す"""
-    return datetime.now().astimezone().strftime("%Y-%m-%d")
+def _get_currency_from_locale() -> str:
+    """システムロケールから通貨コードを判定する
 
-
-def _safe_float(value: object) -> float | None:
-    """値をfloatに安全に変換する"""
+    ロケール文字列から国コードを抽出し、対応する通貨コードを返す
+    POSIX形式(ja_JP)とWindowsフルネーム形式(Japanese_Japan)の両方に対応する
+    判定できない場合はUSDを返す
+    """
     try:
-        return float(value)  # type: ignore[arg-type]
-    except ValueError, TypeError:
-        return None
-
-
-def _safe_int(value: object) -> int | None:
-    """値をintに安全に変換する"""
-    try:
-        return int(value)  # type: ignore[arg-type]
-    except ValueError, TypeError:
-        return None
+        loc, _ = locale.getlocale()
+    except ValueError:
+        return "USD"
+    if not loc:
+        return "USD"
+    parts = loc.split("_")
+    if len(parts) < 2:
+        return "USD"
+    # POSIX形式: "ja_JP" -> "JP", "en_US" -> "US"
+    country = parts[1].split(".")[0].upper()
+    currency = _LOCALE_TO_CURRENCY.get(country)
+    if not currency:
+        # Windowsフルネーム形式のフォールバック:
+        # 言語名からlocale_aliasでPOSIXロケールを推定する
+        # 例: "Japanese" -> "ja_JP.eucJP" -> "JP"
+        alias = locale.locale_alias.get(parts[0].lower(), "")
+        alias_parts = alias.split("_")
+        if len(alias_parts) >= 2:
+            country = alias_parts[1].split(".")[0].upper()
+        currency = _LOCALE_TO_CURRENCY.get(country)
+    return currency or "USD"
 
 
 def _get_exchange_rate(currency: str) -> float | None:
@@ -359,126 +454,44 @@ def _get_supported_currencies() -> list[str] | None:
     )
 
 
-def _get_daily_cost(data: dict[str, Any]) -> float | None:
-    """日次コストをセッション別delta累積方式で算出する
+def _format_cost(cost_usd: float) -> str:
+    """コスト値を現在の通貨設定でフォーマットする
 
-    total_cost_usdはセッションスコープ(各セッションで0から開始)のため、
-    session_idごとにlast_totalを追跡しdeltaを累積する
-    - 既知のセッション: delta(前回値との差分)を加算する
-    - 新規セッション: last_totalを記録し、次回以降のdeltaから累積する
-    - 日付変更時: 全セッションの追跡と累積値をリセットする
+    _currencyがUSDの場合はそのまま表示する
+    為替レート取得失敗時はUSDにフォールバックする
     """
-    cost = data.get("cost")
-    total_cost = cost.get("total_cost_usd") if isinstance(cost, dict) else None
-    if total_cost is None:
-        return None
+    if _currency == "USD":
+        return f"${cost_usd:,.2f}"
 
-    current_total = _safe_float(total_cost)
-    if current_total is None:
-        return None
+    rate = _get_exchange_rate(_currency)
+    if rate is None:
+        return f"${cost_usd:,.2f}"
 
-    session_id = str(data.get("session_id", ""))
-    today = _today()
+    info = _CURRENCIES.get(_currency)
+    if info is None:
+        return f"${cost_usd:,.2f}"
 
-    accumulated = 0.0
-    sessions: dict[str, float] = {}
-
-    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
-        cache_text = _DAILY_COST_CACHE_PATH.read_text(encoding="utf-8")
-        cache_obj = json.loads(cache_text)
-
-        if cache_obj.get("date") == today:
-            accumulated = float(cache_obj.get("accumulated", 0.0))
-            sessions = cache_obj.get("sessions", {})
-
-    if session_id in sessions:
-        delta = current_total - sessions[session_id]
-        if delta > 0:
-            accumulated += delta
-    # 新規セッションはlast_totalを記録するのみ
-    # (日跨ぎセッションの昨日分コストを含めないため)
-
-    if sessions.get(session_id) != current_total:
-        sessions[session_id] = current_total
-        _write_cache(
-            _DAILY_COST_CACHE_PATH,
-            {"date": today, "sessions": sessions, "accumulated": accumulated},
-        )
-    return accumulated
+    converted = cost_usd * rate
+    return f"{info.symbol}{converted:,.{info.decimals}f}"
 
 
-def _get_cwd(data: dict[str, Any]) -> str:
-    """stdinデータからカレントディレクトリを取得する
+def _resolve_currency(currency_arg: str | None) -> str:
+    """CLI引数とロケールから通貨コードを決定する
 
-    workspace.current_dirを優先し、フォールバックとしてcwdを使用する
+    優先順位: CLI引数(API対応のみ) → ロケール判定(API対応のみ) → USD
     """
-    workspace = data.get("workspace")
-    if isinstance(workspace, dict):
-        current_dir = workspace.get("current_dir")
-        if current_dir:
-            return str(current_dir)
-    return str(data.get("cwd", ""))
+    supported = _get_supported_currencies()
+    if supported is None:
+        return "USD"
 
+    if currency_arg and currency_arg in supported:
+        return currency_arg
 
-def _osc8_link(url: str, text: str) -> str:
-    """OSC 8エスケープシーケンスでクリッカブルリンクを生成する
+    locale_currency = _get_currency_from_locale()
+    if locale_currency in supported:
+        return locale_currency
 
-    対応ターミナル(iTerm2, Kitty, WezTerm等)ではCtrl+クリックで開ける
-    非対応ターミナルでは通常テキストとして表示される
-    """
-    return f"\033]8;;{url}\a{text}\033]8;;\a"
-
-
-def _remote_to_https(remote_url: str) -> str | None:
-    """GitリモートURLをHTTPS URLに変換する
-
-    SSH形式(git@github.com:user/repo.git)とHTTPS形式の両方に対応する
-    """
-    url = remote_url.strip()
-    if url.startswith("git@"):
-        # git@github.com:user/repo.git -> https://github.com/user/repo
-        url = url.replace(":", "/", 1).replace("git@", "https://", 1)
-    url = url.removesuffix(".git")
-    if url.startswith("https://"):
-        return url
-    return None
-
-
-def _colorize(text: str, color: _Color) -> str:
-    """テキストにANSIカラーエスケープを付与する"""
-    return f"\033[{color.value}m{text}\033[0m"
-
-
-def _color_for_utilization(pct: float) -> _Color:
-    """利用率に応じたカラーを返す
-
-    0-59%: GREEN, 60-79%: YELLOW, 80-100%: RED
-    """
-    if pct >= 80:
-        return _Color.RED
-    if pct >= 60:
-        return _Color.YELLOW
-    return _Color.GREEN
-
-
-def _parse_iso_to_local(iso_str: str) -> datetime:
-    """ISO 8601文字列をローカルタイムゾーンのdatetimeに変換する"""
-    dt = datetime.fromisoformat(iso_str)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    return dt.astimezone()
-
-
-def _format_reset_time_short(iso_str: str) -> str:
-    """リセット時刻を "H:MM" 形式でフォーマットする(0埋めなし)"""
-    local_dt = _parse_iso_to_local(iso_str)
-    return f"{local_dt.hour}:{local_dt.minute:02d}"
-
-
-def _format_reset_date(iso_str: str) -> str:
-    """リセット時刻を "M/D H:MM" 形式でフォーマットする(0埋めなし)"""
-    local_dt = _parse_iso_to_local(iso_str)
-    return f"{local_dt.month}/{local_dt.day} {local_dt.hour}:{local_dt.minute:02d}"
+    return "USD"
 
 
 def _get_oauth_token() -> str | None:
@@ -561,6 +574,19 @@ def _get_usage() -> dict[str, Any] | None:
     return _cached_fetch(_CACHE_PATH, _CACHE_TTL, fetch)
 
 
+def _get_cwd(data: dict[str, Any]) -> str:
+    """stdinデータからカレントディレクトリを取得する
+
+    workspace.current_dirを優先し、フォールバックとしてcwdを使用する
+    """
+    workspace = data.get("workspace")
+    if isinstance(workspace, dict):
+        current_dir = workspace.get("current_dir")
+        if current_dir:
+            return str(current_dir)
+    return str(data.get("cwd", ""))
+
+
 def _fetch_git_info(cwd: str) -> dict[str, Any]:
     """Gitのブランチ名とリモートURLを取得する"""
     info: dict[str, Any] = {}
@@ -618,6 +644,90 @@ def _get_git_info(cwd: str) -> dict[str, Any] | None:
         lambda: _fetch_git_info(cwd),
         cache_key={"cwd": cwd},
     )
+
+
+def _get_session_cost(data: dict[str, Any]) -> float | None:
+    """セッション単位のコストを算出する
+
+    total_cost_usdはセッションスコープ(各セッションで0から開始)であるが、
+    Claude Codeの再起動等でセッションIDが変わらずコストが引き継がれるケースに備え、
+    セッション開始時のコストをベースラインとして記録し差分を返す
+    """
+    cost = data.get("cost")
+    total_cost = cost.get("total_cost_usd") if isinstance(cost, dict) else None
+    if total_cost is None:
+        return None
+
+    total_cost_val = _safe_float(total_cost)
+    if total_cost_val is None:
+        return None
+
+    session_id = data.get("session_id")
+    if not session_id:
+        return total_cost_val
+
+    # セッションキャッシュを読み込む
+    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
+        cache_text = _SESSION_COST_CACHE_PATH.read_text(encoding="utf-8")
+        cache_obj = json.loads(cache_text)
+        if cache_obj.get("session_id") == session_id:
+            baseline = float(cache_obj.get("baseline_cost", 0.0))
+            return total_cost_val - baseline
+
+    # 新しいセッション: 現在のコストをベースラインとして記録する
+    _write_cache(
+        _SESSION_COST_CACHE_PATH,
+        {"session_id": session_id, "baseline_cost": total_cost_val},
+    )
+    return 0.0
+
+
+def _get_daily_cost(data: dict[str, Any]) -> float | None:
+    """日次コストをセッション別delta累積方式で算出する
+
+    total_cost_usdはセッションスコープ(各セッションで0から開始)のため、
+    session_idごとにlast_totalを追跡しdeltaを累積する
+    - 既知のセッション: delta(前回値との差分)を加算する
+    - 新規セッション: last_totalを記録し、次回以降のdeltaから累積する
+    - 日付変更時: 全セッションの追跡と累積値をリセットする
+    """
+    cost = data.get("cost")
+    total_cost = cost.get("total_cost_usd") if isinstance(cost, dict) else None
+    if total_cost is None:
+        return None
+
+    current_total = _safe_float(total_cost)
+    if current_total is None:
+        return None
+
+    session_id = str(data.get("session_id", ""))
+    today = _today()
+
+    accumulated = 0.0
+    sessions: dict[str, float] = {}
+
+    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
+        cache_text = _DAILY_COST_CACHE_PATH.read_text(encoding="utf-8")
+        cache_obj = json.loads(cache_text)
+
+        if cache_obj.get("date") == today:
+            accumulated = float(cache_obj.get("accumulated", 0.0))
+            sessions = cache_obj.get("sessions", {})
+
+    if session_id in sessions:
+        delta = current_total - sessions[session_id]
+        if delta > 0:
+            accumulated += delta
+    # 新規セッションはlast_totalを記録するのみ
+    # (日跨ぎセッションの昨日分コストを含めないため)
+
+    if sessions.get(session_id) != current_total:
+        sessions[session_id] = current_total
+        _write_cache(
+            _DAILY_COST_CACHE_PATH,
+            {"date": today, "sessions": sessions, "accumulated": accumulated},
+        )
+    return accumulated
 
 
 def _seg_project(data: dict[str, Any]) -> Segment | None:
@@ -699,42 +809,6 @@ def _seg_model(data: dict[str, Any]) -> Segment | None:
 
     label = f"{_icons.MODEL} {model_text}"
     return Segment(text=label)
-
-
-def _extract_version(model_id: str) -> str:
-    """モデルIDからバージョン文字列を抽出する
-
-    "claude-opus-4-6" -> "4.6"
-    "claude-sonnet-4-5-20250514" -> "4.5"
-    "claude-haiku-3-5-20241022" -> "3.5"
-    """
-    # "claude-" プレフィクスを除去
-    rest = model_id.removeprefix("claude-")
-
-    # モデルファミリー名を除去(opus, sonnet, haikuなど)
-    parts = rest.split("-")
-    if len(parts) < 2:
-        return ""
-
-    # ファミリー名以降で数字部分を探す
-    digit_parts: list[str] = []
-    found_digit = False
-    for part in parts[1:]:
-        if part.isdigit():
-            if len(part) >= 4:
-                break  # 日付文字列(20240229等)はバージョンではないためスキップ
-            found_digit = True
-            digit_parts.append(part)
-            # メジャー.マイナーの2つまで取得する
-            if len(digit_parts) >= 2:
-                break
-        elif found_digit:
-            break  # 数字の連続が途切れたら終了
-
-    if not digit_parts:
-        return ""
-
-    return ".".join(digit_parts)
 
 
 def _seg_context(data: dict[str, Any]) -> Segment | None:
@@ -825,63 +899,6 @@ def _seg_rate_7d(data: dict[str, Any]) -> Segment | None:
     return _seg_rate_common(
         data, "seven_day", "7d", _icons.CALENDAR, _format_reset_date
     )
-
-
-def _format_cost(cost_usd: float) -> str:
-    """コスト値を現在の通貨設定でフォーマットする
-
-    _currencyがUSDの場合はそのまま表示する
-    為替レート取得失敗時はUSDにフォールバックする
-    """
-    if _currency == "USD":
-        return f"${cost_usd:,.2f}"
-
-    rate = _get_exchange_rate(_currency)
-    if rate is None:
-        return f"${cost_usd:,.2f}"
-
-    info = _CURRENCIES.get(_currency)
-    if info is None:
-        return f"${cost_usd:,.2f}"
-
-    converted = cost_usd * rate
-    return f"{info.symbol}{converted:,.{info.decimals}f}"
-
-
-def _get_session_cost(data: dict[str, Any]) -> float | None:
-    """セッション単位のコストを算出する
-
-    total_cost_usdはセッションスコープ(各セッションで0から開始)であるが、
-    Claude Codeの再起動等でセッションIDが変わらずコストが引き継がれるケースに備え、
-    セッション開始時のコストをベースラインとして記録し差分を返す
-    """
-    cost = data.get("cost")
-    total_cost = cost.get("total_cost_usd") if isinstance(cost, dict) else None
-    if total_cost is None:
-        return None
-
-    total_cost_val = _safe_float(total_cost)
-    if total_cost_val is None:
-        return None
-
-    session_id = data.get("session_id")
-    if not session_id:
-        return total_cost_val
-
-    # セッションキャッシュを読み込む
-    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
-        cache_text = _SESSION_COST_CACHE_PATH.read_text(encoding="utf-8")
-        cache_obj = json.loads(cache_text)
-        if cache_obj.get("session_id") == session_id:
-            baseline = float(cache_obj.get("baseline_cost", 0.0))
-            return total_cost_val - baseline
-
-    # 新しいセッション: 現在のコストをベースラインとして記録する
-    _write_cache(
-        _SESSION_COST_CACHE_PATH,
-        {"session_id": session_id, "baseline_cost": total_cost_val},
-    )
-    return 0.0
 
 
 def _seg_session_cost(data: dict[str, Any]) -> Segment | None:
@@ -975,25 +992,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--currency", type=str.upper, default=None)
     parser.add_argument("--segments", type=str, default=_DEFAULT_SEGMENTS)
     return parser.parse_args(argv)
-
-
-def _resolve_currency(currency_arg: str | None) -> str:
-    """CLI引数とロケールから通貨コードを決定する
-
-    優先順位: CLI引数(API対応のみ) → ロケール判定(API対応のみ) → USD
-    """
-    supported = _get_supported_currencies()
-    if supported is None:
-        return "USD"
-
-    if currency_arg and currency_arg in supported:
-        return currency_arg
-
-    locale_currency = _get_currency_from_locale()
-    if locale_currency in supported:
-        return locale_currency
-
-    return "USD"
 
 
 def main() -> None:
