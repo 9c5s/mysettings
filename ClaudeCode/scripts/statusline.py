@@ -93,8 +93,6 @@ _EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-exchange-cache.json
 _SESSION_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-session-cost.json"
 _DAILY_COST_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-daily-cost.json"
 _EXCHANGE_API_URL = "https://api.frankfurter.app/latest?from=USD&to={currency}"
-_CURRENCIES_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-currencies-cache.json"
-_CURRENCIES_API_URL = "https://api.frankfurter.app/currencies"
 
 _CURRENCIES: dict[str, _CurrencyInfo] = {
     "USD": _CurrencyInfo(symbol="$", decimals=2),
@@ -436,24 +434,6 @@ def _get_exchange_rate(currency: str) -> float | None:
     return float(result) if result is not None else None
 
 
-def _get_supported_currencies() -> list[str] | None:
-    """frankfurter.app APIの対応通貨コードリストを取得する(キャッシュ付き)"""
-
-    def fetch() -> list[str]:
-        req = Request(_CURRENCIES_API_URL, headers={"User-Agent": "statusline/1.0"})
-        with urlopen(req, timeout=_API_TIMEOUT) as resp:  # noqa: S310
-            body = resp.read().decode("utf-8")
-        return sorted(json.loads(body).keys())
-
-    today = _today()
-    return _cached_fetch(
-        _CURRENCIES_CACHE_PATH,
-        sys.maxsize,
-        fetch,
-        cache_key={"date": today},
-    )
-
-
 def _format_cost(cost_usd: float) -> str:
     """コスト値を現在の通貨設定でフォーマットする
 
@@ -478,11 +458,11 @@ def _format_cost(cost_usd: float) -> str:
 def _resolve_currency(currency_arg: str | None) -> str:
     """CLI引数とロケールから通貨コードを決定する
 
-    優先順位: CLI引数(API対応のみ) → ロケール判定(API対応のみ) → USD
+    優先順位: CLI引数 → ロケール判定 → USD
+    ローカルの_CURRENCIESを一次ソースとし、ネットワーク呼び出しを行わない
+    APIの対応通貨チェックはレート取得時に自然に行われる
     """
-    supported = _get_supported_currencies()
-    if supported is None:
-        return "USD"
+    supported = set(_CURRENCIES)
 
     if currency_arg and currency_arg in supported:
         return currency_arg
@@ -666,19 +646,20 @@ def _get_session_cost(data: dict[str, Any]) -> float | None:
     if not session_id:
         return total_cost_val
 
-    # セッションキャッシュを読み込む
+    # セッションキャッシュを読み込む(セッションIDごとの辞書形式)
+    sessions: dict[str, float] = {}
     with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
         cache_text = _SESSION_COST_CACHE_PATH.read_text(encoding="utf-8")
         cache_obj = json.loads(cache_text)
-        if cache_obj.get("session_id") == session_id:
-            baseline = float(cache_obj.get("baseline_cost", 0.0))
-            return total_cost_val - baseline
+        sessions = cache_obj.get("sessions", {})
+
+    if session_id in sessions:
+        baseline = float(sessions[session_id])
+        return total_cost_val - baseline
 
     # 新しいセッション: 現在のコストをベースラインとして記録する
-    _write_cache(
-        _SESSION_COST_CACHE_PATH,
-        {"session_id": session_id, "baseline_cost": total_cost_val},
-    )
+    sessions[session_id] = total_cost_val
+    _write_cache(_SESSION_COST_CACHE_PATH, {"sessions": sessions})
     return 0.0
 
 
