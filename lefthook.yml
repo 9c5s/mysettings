@@ -36,18 +36,24 @@ pre-commit:
       stage_fixed: true
 
     - name: ruff
-      glob: '*.{py,pyi}'
+      glob:
+        - '*.{py,pyi}'
+        - '**/*.{py,pyi}'
       run: |
         uvx ruff format {staged_files}
         uvx ruff check --fix {staged_files}
       stage_fixed: true
 
     - name: pyright
-      glob: '*.{py,pyi}'
+      glob:
+        - '*.{py,pyi}'
+        - '**/*.{py,pyi}'
       run: uvx pyright {staged_files}
 
     - name: pytest
-      glob: '**/*.py'
+      glob:
+        - '*.py'
+        - '**/*.py'
       run: |
         t=$(for f in {staged_files}; do b=$(basename "$f")
           [[ "$b" != test_* ]] && b="test_$b"
