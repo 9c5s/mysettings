@@ -2,7 +2,6 @@
 
 # テストではプライベートメンバーへのアクセスが必要である
 # pyright: reportPrivateUsage=false
-# pyright: reportUnknownMemberType=false
 
 import json
 import sys
@@ -1718,7 +1717,7 @@ class TestGetDailyCost:
 
         # delta = 5.0 - 2.0 = 3.0, accumulated = 3.0 + 3.0 = 6.0
         assert result is not None
-        assert result == pytest.approx(6.0)
+        assert result == pytest.approx(6.0)  # pyright: ignore[reportUnknownMemberType]
 
     def test_new_session_records_without_accumulating(self, tmp_path: Path) -> None:
         """新規セッションはlast_totalを記録するのみで累積しない"""
@@ -1736,7 +1735,7 @@ class TestGetDailyCost:
 
         # 新規セッションは累積しない
         assert result is not None
-        assert result == pytest.approx(15.0)
+        assert result == pytest.approx(15.0)  # pyright: ignore[reportUnknownMemberType]
         cache_obj = json.loads(cache_file.read_text())
         assert cache_obj["sessions"]["sess-b"] == 0.5
 
@@ -1791,22 +1790,22 @@ class TestGetDailyCost:
             # セッション1: $3使用
             r = statusline._get_daily_cost(self._make_data(3.0, "s1"))
             assert r is not None
-            assert r == pytest.approx(3.0)
+            assert r == pytest.approx(3.0)  # pyright: ignore[reportUnknownMemberType]
 
             # セッション1: $5まで使用
             r = statusline._get_daily_cost(self._make_data(5.0, "s1"))
             assert r is not None
-            assert r == pytest.approx(5.0)
+            assert r == pytest.approx(5.0)  # pyright: ignore[reportUnknownMemberType]
 
             # セッション2: 新セッション開始(記録のみ)
             r = statusline._get_daily_cost(self._make_data(0.0, "s2"))
             assert r is not None
-            assert r == pytest.approx(5.0)  # 前セッションの$5は保持
+            assert r == pytest.approx(5.0)  # pyright: ignore[reportUnknownMemberType]  # 前セッションの$5は保持
 
             # セッション2: $2使用
             r = statusline._get_daily_cost(self._make_data(2.0, "s2"))
             assert r is not None
-            assert r == pytest.approx(7.0)  # $5 + $2 = $7
+            assert r == pytest.approx(7.0)  # pyright: ignore[reportUnknownMemberType]  # $5 + $2 = $7
 
     def test_concurrent_sessions_no_flipflop(self, tmp_path: Path) -> None:
         """複数セッションが交互に呼び出してもflip-flopしない"""
@@ -1829,7 +1828,7 @@ class TestGetDailyCost:
 
             # 正しい合計: A=$5 + B=$3 = $8
             assert r is not None
-            assert r == pytest.approx(8.0)
+            assert r == pytest.approx(8.0)  # pyright: ignore[reportUnknownMemberType]
 
 
 class TestSegDailyCost:
