@@ -2,6 +2,7 @@
 
 # テストではプライベートメンバーへのアクセスが必要である
 # pyright: reportPrivateUsage=false
+# pyright: reportUnknownMemberType=false
 
 import json
 import sys
@@ -18,6 +19,16 @@ sys.path.insert(
     0, str(Path(__file__).resolve().parent.parent / "ClaudeCode" / "scripts")
 )
 import statusline
+
+
+def _mock_http_response(body: bytes) -> MagicMock:
+    """モックHTTPレスポンスを生成する"""
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = body
+    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+    mock_resp.__exit__ = MagicMock(return_value=None)
+    return mock_resp
+
 
 _FULL_STDIN_SAMPLE: dict[str, Any] = {
     "cwd": "/fallback/cwd/directory",
@@ -189,10 +200,7 @@ class TestGetExchangeRate:
         # 存在しないキャッシュファイルを指定してキャッシュミスを発生させる
         cache_file = tmp_path / "nonexistent-cache.json"
 
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = b'{"rates":{"JPY":150.5}}'
-        mock_resp.__enter__.return_value = mock_resp
-        mock_resp.__exit__.return_value = None
+        mock_resp = _mock_http_response(b'{"rates":{"JPY":150.5}}')
 
         with (
             patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file),
@@ -252,10 +260,7 @@ class TestGetExchangeRate:
         """APIレスポンスにrateが含まれない場合はNoneを返す"""
         cache_file = tmp_path / "nonexistent-cache.json"
 
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = b'{"rates":{}}'
-        mock_resp.__enter__.return_value = mock_resp
-        mock_resp.__exit__.return_value = None
+        mock_resp = _mock_http_response(b'{"rates":{}}')
 
         with (
             patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file),
@@ -276,10 +281,7 @@ class TestGetExchangeRate:
         }
         cache_file.write_text(json.dumps(cache_data))
 
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = b'{"rates":{"JPY":150.0}}'
-        mock_resp.__enter__.return_value = mock_resp
-        mock_resp.__exit__.return_value = None
+        mock_resp = _mock_http_response(b'{"rates":{"JPY":150.0}}')
 
         with (
             patch.object(statusline, "_EXCHANGE_CACHE_PATH", cache_file),
@@ -579,14 +581,11 @@ class TestGetSupportedCurrencies:
     def test_fetches_from_api(self, tmp_path: Path) -> None:
         """APIから通貨リストを取得する"""
         cache_file = tmp_path / "currencies-cache.json"
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = (
+        mock_resp = _mock_http_response(
             b'{"AUD":"Australian Dollar",'
             b'"JPY":"Japanese Yen",'
             b'"USD":"United States Dollar"}'
         )
-        mock_resp.__enter__.return_value = mock_resp
-        mock_resp.__exit__.return_value = None
 
         with (
             patch.object(statusline, "_CURRENCIES_CACHE_PATH", cache_file),
@@ -721,116 +720,78 @@ class TestResolveCurrency:
 class TestExtractVersion:
     """_extract_version のテスト"""
 
-    def test_opus_4_6(self) -> None:
-        """claude-opus-4-6 -> '4.6'."""
-        assert statusline._extract_version("claude-opus-4-6") == "4.6"
-
-    def test_sonnet_with_date(self) -> None:
-        """日付サフィックス付きモデルID"""
-        assert statusline._extract_version("claude-sonnet-4-5-20250514") == "4.5"
-
-    def test_haiku_with_date(self) -> None:
-        """旧世代モデルIDのバージョン抽出"""
-        assert statusline._extract_version("claude-haiku-3-5-20241022") == "3.5"
-
-    def test_empty_string(self) -> None:
-        """空文字列は空文字列を返す"""
-        assert statusline._extract_version("") == ""
-
-    def test_unknown_model(self) -> None:
-        """パースできないIDは空文字列を返す"""
-        assert statusline._extract_version("unknown") == ""
-
-    def test_single_version_number(self) -> None:
-        """メジャーバージョンのみ"""
-        assert statusline._extract_version("claude-opus-4") == "4"
-
-    def test_date_only_id_returns_empty(self) -> None:
-        """日付のみのIDは空文字列を返す"""
-        assert statusline._extract_version("claude-opus-20250514") == ""
-
-    def test_non_digit_after_digit_stops(self) -> None:
-        """数字の後に非数字が来たらそこで終了する"""
-        assert statusline._extract_version("claude-opus-4-beta") == "4"
-
-    def test_no_digit_parts_returns_empty(self) -> None:
-        """数字パーツがない場合は空文字列を返す"""
-        assert statusline._extract_version("claude-opus-abc") == ""
+    @pytest.mark.parametrize(
+        "model_id, expected",
+        [
+            ("claude-opus-4-6", "4.6"),
+            ("claude-sonnet-4-5-20250514", "4.5"),
+            ("claude-haiku-3-5-20241022", "3.5"),
+            ("", ""),
+            ("unknown", ""),
+            ("claude-opus-4", "4"),
+            ("claude-opus-20250514", ""),
+            ("claude-opus-4-beta", "4"),
+            ("claude-opus-abc", ""),
+        ],
+    )
+    def test_extract_version(self, model_id: str, expected: str) -> None:
+        """モデルIDからバージョン文字列を正しく抽出する"""
+        assert statusline._extract_version(model_id) == expected
 
 
 class TestRemoteToHttps:
     """_remote_to_https のテスト"""
 
-    def test_ssh_format(self) -> None:
-        """SSH形式をHTTPSに変換する"""
-        result = statusline._remote_to_https("git@github.com:user/repo.git")
-        assert result == "https://github.com/user/repo"
-
-    def test_https_with_git_suffix(self) -> None:
-        """HTTPS形式で.gitサフィックスを除去する"""
-        result = statusline._remote_to_https("https://github.com/user/repo.git")
-        assert result == "https://github.com/user/repo"
-
-    def test_https_without_git_suffix(self) -> None:
-        """HTTPS形式でサフィックスなし"""
-        result = statusline._remote_to_https("https://github.com/user/repo")
-        assert result == "https://github.com/user/repo"
-
-    def test_unsupported_protocol(self) -> None:
-        """非対応プロトコルはNoneを返す"""
-        assert statusline._remote_to_https("svn://example.com/repo") is None
-
-    def test_whitespace_trimmed(self) -> None:
-        """前後の空白を除去する"""
-        result = statusline._remote_to_https("  https://github.com/user/repo  ")
-        assert result == "https://github.com/user/repo"
+    @pytest.mark.parametrize(
+        "input_url, expected",
+        [
+            ("git@github.com:user/repo.git", "https://github.com/user/repo"),
+            ("https://github.com/user/repo.git", "https://github.com/user/repo"),
+            ("https://github.com/user/repo", "https://github.com/user/repo"),
+            ("svn://example.com/repo", None),
+            ("  https://github.com/user/repo  ", "https://github.com/user/repo"),
+        ],
+    )
+    def test_remote_to_https(self, input_url: str, expected: str | None) -> None:
+        """GitリモートURLをHTTPS URLに正しく変換する"""
+        assert statusline._remote_to_https(input_url) == expected
 
 
 class TestColorForUtilization:
     """_color_for_utilization のテスト"""
 
-    def test_zero_is_green(self) -> None:
-        """0%はGREENを返す"""
-        assert statusline._color_for_utilization(0) == statusline._Color.GREEN
-
-    def test_59_is_green(self) -> None:
-        """59%はGREENを返す"""
-        assert statusline._color_for_utilization(59) == statusline._Color.GREEN
-
-    def test_60_is_yellow(self) -> None:
-        """60%はYELLOWを返す"""
-        assert statusline._color_for_utilization(60) == statusline._Color.YELLOW
-
-    def test_79_is_yellow(self) -> None:
-        """79%はYELLOWを返す"""
-        assert statusline._color_for_utilization(79) == statusline._Color.YELLOW
-
-    def test_80_is_red(self) -> None:
-        """80%はREDを返す"""
-        assert statusline._color_for_utilization(80) == statusline._Color.RED
-
-    def test_100_is_red(self) -> None:
-        """100%はREDを返す"""
-        assert statusline._color_for_utilization(100) == statusline._Color.RED
+    @pytest.mark.parametrize(
+        "pct, expected_color",
+        [
+            (0, statusline._Color.GREEN),
+            (59, statusline._Color.GREEN),
+            (60, statusline._Color.YELLOW),
+            (79, statusline._Color.YELLOW),
+            (80, statusline._Color.RED),
+            (100, statusline._Color.RED),
+        ],
+    )
+    def test_color_for_utilization(
+        self, pct: float, expected_color: statusline._Color
+    ) -> None:
+        """利用率に応じた正しいカラーを返す"""
+        assert statusline._color_for_utilization(pct) == expected_color
 
 
 class TestColorize:
     """_colorize のテスト"""
 
-    def test_red(self) -> None:
-        """RED色のANSIエスケープシーケンスを生成する"""
-        result = statusline._colorize("hello", statusline._Color.RED)
-        assert result == "\033[31mhello\033[0m"
-
-    def test_green(self) -> None:
-        """GREEN色のANSIエスケープシーケンスを生成する"""
-        result = statusline._colorize("ok", statusline._Color.GREEN)
-        assert result == "\033[32mok\033[0m"
-
-    def test_empty_text(self) -> None:
-        """空文字列でもエスケープシーケンスは付与される"""
-        result = statusline._colorize("", statusline._Color.BLUE)
-        assert result == "\033[34m\033[0m"
+    @pytest.mark.parametrize(
+        "text, color, expected",
+        [
+            ("hello", statusline._Color.RED, "\033[31mhello\033[0m"),
+            ("ok", statusline._Color.GREEN, "\033[32mok\033[0m"),
+            ("", statusline._Color.BLUE, "\033[34m\033[0m"),
+        ],
+    )
+    def test_colorize(self, text: str, color: statusline._Color, expected: str) -> None:
+        """ANSIカラーエスケープシーケンスを正しく生成する"""
+        assert statusline._colorize(text, color) == expected
 
 
 class TestGetCwd:
@@ -1539,10 +1500,7 @@ class TestFetchUsage:
 
     def test_fetches_from_api(self) -> None:
         """APIからレスポンスを取得しパースする"""
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = b'{"five_hour":{"utilization":30}}'
-        mock_resp.__enter__.return_value = mock_resp
-        mock_resp.__exit__.return_value = None
+        mock_resp = _mock_http_response(b'{"five_hour":{"utilization":30}}')
 
         with patch("statusline.urlopen", return_value=mock_resp):
             result = statusline._fetch_usage("test-token")
@@ -1550,10 +1508,7 @@ class TestFetchUsage:
 
     def test_sets_authorization_header(self) -> None:
         """Authorizationヘッダーを設定する"""
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = b"{}"
-        mock_resp.__enter__.return_value = mock_resp
-        mock_resp.__exit__.return_value = None
+        mock_resp = _mock_http_response(b"{}")
 
         with patch("statusline.urlopen", return_value=mock_resp) as mock_urlopen:
             statusline._fetch_usage("my-secret-token")
@@ -1763,7 +1718,7 @@ class TestGetDailyCost:
 
         # delta = 5.0 - 2.0 = 3.0, accumulated = 3.0 + 3.0 = 6.0
         assert result is not None
-        assert abs(result - 6.0) < 1e-10
+        assert result == pytest.approx(6.0)
 
     def test_new_session_records_without_accumulating(self, tmp_path: Path) -> None:
         """新規セッションはlast_totalを記録するのみで累積しない"""
@@ -1781,7 +1736,7 @@ class TestGetDailyCost:
 
         # 新規セッションは累積しない
         assert result is not None
-        assert abs(result - 15.0) < 1e-10
+        assert result == pytest.approx(15.0)
         cache_obj = json.loads(cache_file.read_text())
         assert cache_obj["sessions"]["sess-b"] == 0.5
 
@@ -1836,22 +1791,22 @@ class TestGetDailyCost:
             # セッション1: $3使用
             r = statusline._get_daily_cost(self._make_data(3.0, "s1"))
             assert r is not None
-            assert abs(r - 3.0) < 1e-10
+            assert r == pytest.approx(3.0)
 
             # セッション1: $5まで使用
             r = statusline._get_daily_cost(self._make_data(5.0, "s1"))
             assert r is not None
-            assert abs(r - 5.0) < 1e-10
+            assert r == pytest.approx(5.0)
 
             # セッション2: 新セッション開始(記録のみ)
             r = statusline._get_daily_cost(self._make_data(0.0, "s2"))
             assert r is not None
-            assert abs(r - 5.0) < 1e-10  # 前セッションの$5は保持
+            assert r == pytest.approx(5.0)  # 前セッションの$5は保持
 
             # セッション2: $2使用
             r = statusline._get_daily_cost(self._make_data(2.0, "s2"))
             assert r is not None
-            assert abs(r - 7.0) < 1e-10  # $5 + $2 = $7
+            assert r == pytest.approx(7.0)  # $5 + $2 = $7
 
     def test_concurrent_sessions_no_flipflop(self, tmp_path: Path) -> None:
         """複数セッションが交互に呼び出してもflip-flopしない"""
@@ -1874,7 +1829,7 @@ class TestGetDailyCost:
 
             # 正しい合計: A=$5 + B=$3 = $8
             assert r is not None
-            assert abs(r - 8.0) < 1e-10
+            assert r == pytest.approx(8.0)
 
 
 class TestSegDailyCost:
