@@ -176,13 +176,13 @@ _LOCALE_TO_CURRENCY: dict[str, str] = {
 _ICONS_NERD = _Icons(
     FOLDER="\uf07b",  # nf-fa-folder
     BRANCH="\ue725",  # nf-dev-git_branch
-    MODEL="\U000f068c",  # nf-md-robot
-    CHART="\uf080",  # nf-fa-bar_chart
+    MODEL="\U000f167a",  # nf-md-robot_outline
+    CHART="\uf201",  # nf-fa-line_chart
     PENCIL="\U000f03eb",  # nf-md-pencil
     CLOCK="\uf017",  # nf-fa-clock_o
-    CALENDAR="\uf073",  # nf-fa-calendar
+    CALENDAR="\ueab0",  # nf-cod-calendar
     RESET="\uf0e2",  # nf-fa-undo
-    MONEY="\U000f01f5",  # nf-md-currency_usd
+    MONEY="\uefca",  # nf-fa-money_check_dollar
 )
 
 _icons: _Icons = _Icons()
@@ -907,7 +907,7 @@ def _seg_session_cost(data: dict[str, Any]) -> Segment | None:
     if cost_val is None:
         return None
 
-    label = f"{_icons.MONEY} {_format_cost(cost_val)}"
+    label = f"{_icons.MONEY} {_format_cost(cost_val)} (session)"
     return Segment(text=label)
 
 
@@ -917,7 +917,7 @@ def _seg_daily_cost(data: dict[str, Any]) -> Segment | None:
     if daily is None or daily <= 0.0:
         return None
 
-    label = f"{_icons.MONEY} {_format_cost(daily)}"
+    label = f"{_icons.MONEY} {_format_cost(daily)} (daily)"
     return Segment(text=label)
 
 
