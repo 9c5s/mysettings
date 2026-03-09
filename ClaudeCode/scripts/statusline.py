@@ -307,6 +307,27 @@ def _cached_fetch(
     return data
 
 
+def _today() -> str:
+    """今日の日付をYYYY-MM-DD形式で返す"""
+    return datetime.now().astimezone().strftime("%Y-%m-%d")
+
+
+def _safe_float(value: object) -> float | None:
+    """値をfloatに安全に変換する。変換できない場合はNoneを返す"""
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except ValueError, TypeError:
+        return None
+
+
+def _safe_int(value: object) -> int | None:
+    """値をintに安全に変換する。変換できない場合はNoneを返す"""
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except ValueError, TypeError:
+        return None
+
+
 def _get_exchange_rate(currency: str) -> float | None:
     """USD→指定通貨の為替レートを取得する(キャッシュ付き)
 
@@ -330,7 +351,7 @@ def _get_exchange_rate(currency: str) -> float | None:
             raise ValueError(msg)
         return float(rate)
 
-    today = datetime.now().astimezone().strftime("%Y-%m-%d")
+    today = _today()
     result = _cached_fetch(
         _EXCHANGE_CACHE_PATH,
         sys.maxsize,
@@ -349,7 +370,7 @@ def _get_supported_currencies() -> list[str] | None:
             body = resp.read().decode("utf-8")
         return sorted(json.loads(body).keys())
 
-    today = datetime.now().astimezone().strftime("%Y-%m-%d")
+    today = _today()
     return _cached_fetch(
         _CURRENCIES_CACHE_PATH,
         sys.maxsize,
@@ -372,13 +393,12 @@ def _get_daily_cost(data: dict[str, Any]) -> float | None:
     if total_cost is None:
         return None
 
-    try:
-        current_total = float(total_cost)
-    except ValueError, TypeError:
+    current_total = _safe_float(total_cost)
+    if current_total is None:
         return None
 
     session_id = str(data.get("session_id", ""))
-    today = datetime.now().astimezone().strftime("%Y-%m-%d")
+    today = _today()
 
     accumulated = 0.0
     sessions: dict[str, float] = {}
@@ -398,11 +418,12 @@ def _get_daily_cost(data: dict[str, Any]) -> float | None:
     # 新規セッションはlast_totalを記録するのみ
     # (日跨ぎセッションの昨日分コストを含めないため)
 
-    sessions[session_id] = current_total
-    _write_cache(
-        _DAILY_COST_CACHE_PATH,
-        {"date": today, "sessions": sessions, "accumulated": accumulated},
-    )
+    if sessions.get(session_id) != current_total:
+        sessions[session_id] = current_total
+        _write_cache(
+            _DAILY_COST_CACHE_PATH,
+            {"date": today, "sessions": sessions, "accumulated": accumulated},
+        )
     return accumulated
 
 
@@ -816,9 +837,8 @@ def _seg_context(data: dict[str, Any]) -> Segment | None:
     if pct is None:
         return None
 
-    try:
-        pct_val = float(pct)
-    except ValueError, TypeError:
+    pct_val = _safe_float(pct)
+    if pct_val is None:
         return None
     pct_int = int(pct_val)
     color = _color_for_utilization(pct_val)
@@ -843,10 +863,9 @@ def _seg_lines(data: dict[str, Any]) -> Segment | None:
     if not isinstance(cost, dict):
         return None
 
-    try:
-        added = int(cost.get("total_lines_added", 0))
-        removed = int(cost.get("total_lines_removed", 0))
-    except ValueError, TypeError:
+    added = _safe_int(cost.get("total_lines_added", 0))
+    removed = _safe_int(cost.get("total_lines_removed", 0))
+    if added is None or removed is None:
         return None
 
     if added == 0 and removed == 0:
@@ -885,13 +904,11 @@ def _seg_rate_common(
     if not isinstance(bucket, dict):
         return None
 
-    utilization = bucket.get("utilization")
     resets_at = bucket.get("resets_at")
-    if utilization is None or resets_at is None:
+    pct_val = _safe_float(bucket.get("utilization"))
+    if pct_val is None or resets_at is None:
         return None
-
     try:
-        pct_val = float(utilization)
         reset_str = fmt_reset(str(resets_at))
     except ValueError, TypeError:
         return None
@@ -965,9 +982,8 @@ def _get_session_cost(data: dict[str, Any]) -> float | None:
     if total_cost is None:
         return None
 
-    try:
-        total_cost_val = float(total_cost)
-    except ValueError, TypeError:
+    total_cost_val = _safe_float(total_cost)
+    if total_cost_val is None:
         return None
 
     session_id = data.get("session_id")
