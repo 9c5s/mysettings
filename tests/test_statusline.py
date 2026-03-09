@@ -8,7 +8,10 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Never
+from typing import TYPE_CHECKING, Any, Never
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 
@@ -1843,7 +1846,7 @@ class TestSegDailyCost:
             seg = statusline._seg_daily_cost({})
         assert seg is not None
         assert "$1.23" in seg.text
-        assert statusline._Icons().CHART in seg.text
+        assert statusline._Icons().MONEY in seg.text
 
     def test_returns_none_when_none(self) -> None:
         """デイリーコストがNoneの場合はNoneを返す"""
@@ -1929,3 +1932,93 @@ class TestParseSegments:
         """空文字列は空リストを返す"""
         lines = statusline._parse_segments("")
         assert len(lines) == 0
+
+
+class TestMain:
+    """main() の統合テスト"""
+
+    @pytest.fixture(autouse=True)
+    def _restore_globals(self) -> Iterator[None]:
+        """テスト後にグローバル状態を復元する"""
+        saved = statusline._icons, statusline._currency
+        yield
+        statusline._icons, statusline._currency = saved
+
+    def test_valid_input_produces_output(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """正常なJSON入力でステータスラインが出力される"""
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.argv", ["statusline.py"]),
+            patch.object(statusline, "_get_git_info", return_value={"branch": "main"}),
+            patch.object(statusline, "_get_usage", return_value=None),
+            patch.object(statusline, "_resolve_currency", return_value="USD"),
+            patch.object(statusline, "_get_session_cost", return_value=0.5),
+            patch.object(statusline, "_get_daily_cost", return_value=1.0),
+        ):
+            mock_stdin.read.return_value = json.dumps(_FULL_STDIN_SAMPLE)
+            statusline.main()
+        output = capsys.readouterr().out
+        assert "myproject" in output
+        assert "main" in output
+
+    def test_icons_nerd_flag(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--icons nerd でNerd Fontsアイコンが使用される"""
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.argv", ["statusline.py", "--icons", "nerd"]),
+            patch.object(statusline, "_get_git_info", return_value=None),
+            patch.object(statusline, "_get_usage", return_value=None),
+            patch.object(statusline, "_resolve_currency", return_value="USD"),
+            patch.object(statusline, "_get_session_cost", return_value=None),
+            patch.object(statusline, "_get_daily_cost", return_value=None),
+        ):
+            mock_stdin.read.return_value = json.dumps(_FULL_STDIN_SAMPLE)
+            statusline.main()
+        output = capsys.readouterr().out
+        assert statusline._ICONS_NERD.FOLDER in output
+
+    def test_empty_stdin_no_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """空のstdinでは出力なし"""
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.argv", ["statusline.py"]),
+            patch.object(statusline, "_resolve_currency", return_value="USD"),
+        ):
+            mock_stdin.read.return_value = ""
+            statusline.main()
+        assert capsys.readouterr().out == ""
+
+    def test_invalid_json_no_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """不正なJSONでは出力なし"""
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.argv", ["statusline.py"]),
+            patch.object(statusline, "_resolve_currency", return_value="USD"),
+        ):
+            mock_stdin.read.return_value = "{invalid"
+            statusline.main()
+        assert capsys.readouterr().out == ""
+
+    def test_non_dict_json_no_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """JSON配列では出力なし"""
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.argv", ["statusline.py"]),
+            patch.object(statusline, "_resolve_currency", return_value="USD"),
+        ):
+            mock_stdin.read.return_value = "[1, 2, 3]"
+            statusline.main()
+        assert capsys.readouterr().out == ""
+
+    def test_stdin_oserror_no_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """stdin読み取りのOSErrorでは出力なし"""
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("sys.argv", ["statusline.py"]),
+            patch.object(statusline, "_resolve_currency", return_value="USD"),
+        ):
+            mock_stdin.read.side_effect = OSError
+            statusline.main()
+        assert capsys.readouterr().out == ""
