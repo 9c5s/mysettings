@@ -359,13 +359,13 @@ def _get_supported_currencies() -> list[str] | None:
 
 
 def _get_daily_cost(data: dict[str, Any]) -> float | None:
-    """日次コストを累積方式で算出する
+    """日次コストをセッション別delta累積方式で算出する
 
     total_cost_usdはセッションスコープ(各セッションで0から開始)のため、
-    ベースライン差分ではなくdeltaを累積する方式を取る
-    - 同一セッション内: delta(前回値との差分)を加算する
-    - 新セッション検出(delta < 0): 現在値を丸ごと加算する
-    - 日付変更時: 累積値を0にリセットする
+    session_idごとにlast_totalを追跡しdeltaを累積する
+    - 既知のセッション: delta(前回値との差分)を加算する
+    - 新規セッション: last_totalを記録し、次回以降のdeltaから累積する
+    - 日付変更時: 全セッションの追跡と累積値をリセットする
     """
     cost = data.get("cost")
     total_cost = cost.get("total_cost_usd") if isinstance(cost, dict) else None
@@ -377,30 +377,31 @@ def _get_daily_cost(data: dict[str, Any]) -> float | None:
     except ValueError, TypeError:
         return None
 
+    session_id = str(data.get("session_id", ""))
     today = datetime.now().astimezone().strftime("%Y-%m-%d")
 
     accumulated = 0.0
-    last_total = current_total
+    sessions: dict[str, float] = {}
 
     with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
         cache_text = _DAILY_COST_CACHE_PATH.read_text(encoding="utf-8")
         cache_obj = json.loads(cache_text)
 
         if cache_obj.get("date") == today:
-            last_total = float(cache_obj.get("last_total", 0.0))
             accumulated = float(cache_obj.get("accumulated", 0.0))
+            sessions = cache_obj.get("sessions", {})
 
-            delta = current_total - last_total
-            if delta >= 0:
-                # 同一セッション内のコスト増加
-                accumulated += delta
-            else:
-                # 新セッション開始(total_cost_usdリセット)を検出
-                accumulated += current_total
+    if session_id in sessions:
+        delta = current_total - sessions[session_id]
+        if delta > 0:
+            accumulated += delta
+    # 新規セッションはlast_totalを記録するのみ
+    # (日跨ぎセッションの昨日分コストを含めないため)
 
+    sessions[session_id] = current_total
     _write_cache(
         _DAILY_COST_CACHE_PATH,
-        {"date": today, "last_total": current_total, "accumulated": accumulated},
+        {"date": today, "sessions": sessions, "accumulated": accumulated},
     )
     return accumulated
 
