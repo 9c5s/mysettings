@@ -44,22 +44,14 @@ class _Color(IntEnum):
 
 @dataclass(frozen=True, slots=True)
 class Segment:
-    """ステータスライン上の1セグメントを表す
-
-    Attributes:
-        text: ANSIエスケープ込みの表示文字列
-    """
+    """ステータスライン上の1セグメントを表す"""
 
     text: str
 
 
 @dataclass(frozen=True, slots=True)
 class _LineConfig:
-    """行のレイアウト定義
-
-    Attributes:
-        segment_fns: セグメント生成関数のリスト
-    """
+    """行のレイアウト定義"""
 
     segment_fns: list[Callable[[dict[str, Any]], Segment | None]] = field(
         default_factory=list,
@@ -269,12 +261,6 @@ def _cached_fetch(
 
     cache_keyにdateを含めればTTLに頼らず日付変更で無効化できる
     その場合ttlにsys.maxsizeを渡すことでTTLを実質無効にする
-
-    Args:
-        cache_path: キャッシュファイルのパス
-        ttl: キャッシュの有効期間(秒)。sys.maxsizeで実質無効化
-        fetch_fn: データ取得関数。成功時はデータを返し、失敗時は例外を送出する
-        cache_key: キャッシュ有効性の追加判定キー。不一致時はキャッシュを無効化する
     """
     now = datetime.now(UTC).timestamp()
     expired_data: Any | None = None
@@ -314,7 +300,7 @@ def _today() -> str:
 
 
 def _safe_float(value: object) -> float | None:
-    """値をfloatに安全に変換する。変換できない場合はNoneを返す"""
+    """値をfloatに安全に変換する"""
     try:
         return float(value)  # type: ignore[arg-type]
     except ValueError, TypeError:
@@ -322,7 +308,7 @@ def _safe_float(value: object) -> float | None:
 
 
 def _safe_int(value: object) -> int | None:
-    """値をintに安全に変換する。変換できない場合はNoneを返す"""
+    """値をintに安全に変換する"""
     try:
         return int(value)  # type: ignore[arg-type]
     except ValueError, TypeError:
@@ -330,14 +316,7 @@ def _safe_int(value: object) -> int | None:
 
 
 def _get_exchange_rate(currency: str) -> float | None:
-    """USD→指定通貨の為替レートを取得する(キャッシュ付き)
-
-    Args:
-        currency: 通貨コード(例: "JPY")
-
-    Returns:
-        為替レート、USDの場合や取得失敗時はNone
-    """
+    """USD→指定通貨の為替レートを取得する(キャッシュ付き)"""
     if currency == "USD":
         return None
 
@@ -466,26 +445,14 @@ def _remote_to_https(remote_url: str) -> str | None:
 
 
 def _colorize(text: str, color: _Color) -> str:
-    """テキストにANSIカラーエスケープを付与する
-
-    Args:
-        text: 色を付けるテキスト
-        color: ANSIカラーコード
-
-    Returns:
-        ANSIエスケープシーケンスで囲まれた文字列
-    """
+    """テキストにANSIカラーエスケープを付与する"""
     return f"\033[{color.value}m{text}\033[0m"
 
 
 def _color_for_utilization(pct: float) -> _Color:
     """利用率に応じたカラーを返す
 
-    Args:
-        pct: 利用率(0-100)
-
-    Returns:
-        0-59%: GREEN, 60-79%: YELLOW, 80-100%: RED
+    0-59%: GREEN, 60-79%: YELLOW, 80-100%: RED
     """
     if pct >= 80:
         return _Color.RED
@@ -495,14 +462,7 @@ def _color_for_utilization(pct: float) -> _Color:
 
 
 def _parse_iso_to_local(iso_str: str) -> datetime:
-    """ISO 8601文字列をローカルタイムゾーンのdatetimeに変換する
-
-    Args:
-        iso_str: ISO 8601形式の日時文字列
-
-    Returns:
-        ローカルタイムゾーンに変換されたdatetime
-    """
+    """ISO 8601文字列をローカルタイムゾーンのdatetimeに変換する"""
     dt = datetime.fromisoformat(iso_str)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
@@ -510,27 +470,13 @@ def _parse_iso_to_local(iso_str: str) -> datetime:
 
 
 def _format_reset_time_short(iso_str: str) -> str:
-    """リセット時刻を "h:mm" 形式でフォーマットする
-
-    Args:
-        iso_str: ISO 8601形式の日時文字列
-
-    Returns:
-        "H:MM" 形式の文字列(時は0埋めなし)
-    """
+    """リセット時刻を "H:MM" 形式でフォーマットする(0埋めなし)"""
     local_dt = _parse_iso_to_local(iso_str)
     return f"{local_dt.hour}:{local_dt.minute:02d}"
 
 
 def _format_reset_date(iso_str: str) -> str:
-    """リセット時刻を "M/D hh:mm" 形式でフォーマットする(0埋めなし)
-
-    Args:
-        iso_str: ISO 8601形式の日時文字列
-
-    Returns:
-        "M/D H:MM" 形式の文字列(時は0埋めなし)
-    """
+    """リセット時刻を "M/D H:MM" 形式でフォーマットする(0埋めなし)"""
     local_dt = _parse_iso_to_local(iso_str)
     return f"{local_dt.month}/{local_dt.day} {local_dt.hour}:{local_dt.minute:02d}"
 
@@ -541,9 +487,6 @@ def _get_oauth_token() -> str | None:
     以下の順に試行する:
     1. ~/.claude/.credentials.json からファイル読み取り(Windows/Linux)
     2. macOSのKeychainから取得
-
-    Returns:
-        アクセストークン文字列、取得できない場合はNone
     """
     # 1. クレデンシャルファイルから読む
     cred_path = Path.home() / ".claude" / ".credentials.json"
@@ -589,19 +532,7 @@ def _get_oauth_token() -> str | None:
 
 
 def _fetch_usage(token: str) -> dict[str, Any]:
-    """Anthropic Usage APIからレートリミット情報を取得する
-
-    Args:
-        token: OAuthアクセストークン
-
-    Returns:
-        APIレスポンスのJSON辞書
-
-    Raises:
-        URLError: ネットワークエラー
-        json.JSONDecodeError: レスポンスのパースに失敗
-        OSError: IO関連エラー
-    """
+    """Anthropic Usage APIからレートリミット情報を取得する"""
     req = Request(
         _API_URL,
         headers={
@@ -619,9 +550,6 @@ def _get_usage() -> dict[str, Any] | None:
 
     キャッシュのTTLは_CACHE_TTL秒である
     API呼び出しに失敗した場合、期限切れキャッシュも使用する
-
-    Returns:
-        使用状況の辞書、取得できない場合はNone
     """
 
     def fetch() -> dict[str, Any]:
@@ -750,12 +678,6 @@ def _seg_model(data: dict[str, Any]) -> Segment | None:
 
     model.display_nameとmodel.idからバージョンを抽出する
     例: id="claude-opus-4-6", display_name="Opus" -> "Opus 4.6"
-
-    Args:
-        data: stdinから読み込んだJSON辞書
-
-    Returns:
-        モデル名のSegment
     """
     model = data.get("model")
     if not isinstance(model, dict):
@@ -785,12 +707,6 @@ def _extract_version(model_id: str) -> str:
     "claude-opus-4-6" -> "4.6"
     "claude-sonnet-4-5-20250514" -> "4.5"
     "claude-haiku-3-5-20241022" -> "3.5"
-
-    Args:
-        model_id: モデルID文字列
-
-    Returns:
-        バージョン文字列、抽出できない場合は空文字列
     """
     # "claude-" プレフィクスを除去
     rest = model_id.removeprefix("claude-")
@@ -822,14 +738,7 @@ def _extract_version(model_id: str) -> str:
 
 
 def _seg_context(data: dict[str, Any]) -> Segment | None:
-    """コンテキストウィンドウ使用率セグメントを生成する
-
-    Args:
-        data: stdinから読み込んだJSON辞書
-
-    Returns:
-        使用率のSegment(色付き)
-    """
+    """コンテキストウィンドウ使用率セグメントを生成する"""
     ctx = data.get("context_window")
     if not isinstance(ctx, dict):
         return None
@@ -852,14 +761,7 @@ def _seg_context(data: dict[str, Any]) -> Segment | None:
 
 
 def _seg_lines(data: dict[str, Any]) -> Segment | None:
-    """変更行数セグメントを生成する
-
-    Args:
-        data: stdinから読み込んだJSON辞書
-
-    Returns:
-        "+N/-M"形式のSegment、変更がない場合はNone
-    """
+    """変更行数セグメントを生成する"""
     cost = data.get("cost")
     if not isinstance(cost, dict):
         return None
@@ -885,18 +787,7 @@ def _seg_rate_common(
     icon: str,
     fmt_reset: Callable[[str], str],
 ) -> Segment | None:
-    """レートリミットセグメントの共通生成ロジック
-
-    Args:
-        data: stdinから読み込んだJSON辞書
-        usage_key: usageデータ内のキー("five_hour" / "seven_day")
-        period_label: 表示用の期間ラベル("5h" / "7d")
-        icon: Nerd Fontsアイコン
-        fmt_reset: リセット時刻のフォーマット関数
-
-    Returns:
-        "{period_label} NN% <- reset_time"形式のSegment
-    """
+    """レートリミットセグメントの共通生成ロジック"""
     usage = data.get("_usage")
     if not isinstance(usage, dict):
         return None
@@ -923,28 +814,14 @@ def _seg_rate_common(
 
 
 def _seg_rate_5h(data: dict[str, Any]) -> Segment | None:
-    """5時間レートリミットセグメントを生成する
-
-    Args:
-        data: stdinから読み込んだJSON辞書
-
-    Returns:
-        "5h NN% <- reset_time"形式のSegment、データ不足時はNone
-    """
+    """5時間レートリミットセグメントを生成する"""
     return _seg_rate_common(
         data, "five_hour", "5h", _icons.CLOCK, _format_reset_time_short
     )
 
 
 def _seg_rate_7d(data: dict[str, Any]) -> Segment | None:
-    """7日間レートリミットセグメントを生成する
-
-    Args:
-        data: stdinから読み込んだJSON辞書
-
-    Returns:
-        "7d NN% <- reset_time"形式のSegment、データ不足時はNone
-    """
+    """7日間レートリミットセグメントを生成する"""
     return _seg_rate_common(
         data, "seven_day", "7d", _icons.CALENDAR, _format_reset_date
     )
@@ -1028,14 +905,7 @@ def _seg_daily_cost(data: dict[str, Any]) -> Segment | None:
 
 
 def _render_line(segments: list[Segment]) -> str:
-    """セグメントのリストをセパレータで結合して1行にする
-
-    Args:
-        segments: 結合対象のSegmentリスト
-
-    Returns:
-        セパレータで結合された文字列
-    """
+    """セグメントのリストをセパレータで結合して1行にする"""
     sep = _SEPARATOR
     return sep.join(s.text for s in segments)
 
@@ -1044,15 +914,7 @@ def _build_lines(
     data: dict[str, Any],
     lines: list[_LineConfig] | None = None,
 ) -> list[str]:
-    """行定義に従ってステータスラインを構築する
-
-    Args:
-        data: stdinから読み込んだJSON辞書(+ _usageキー)
-        lines: 行構成リスト。Noneの場合はデフォルト構成を使用する
-
-    Returns:
-        表示用の文字列リスト(各要素が1行)
-    """
+    """行定義に従ってステータスラインを構築する"""
     if lines is None:
         lines = _parse_segments(_DEFAULT_SEGMENTS)
 
@@ -1089,14 +951,7 @@ _DEFAULT_SEGMENTS = (
 
 
 def _parse_segments(segments_str: str) -> list[_LineConfig]:
-    """セグメント構成文字列をパースしてLineConfigリストを生成する
-
-    Args:
-        segments_str: "seg1,seg2|seg3,seg4" 形式の文字列
-
-    Returns:
-        各行のLineConfigリスト。空行は除外する
-    """
+    """セグメント構成文字列をパースしてLineConfigリストを生成する"""
     if not segments_str.strip():
         return []
 
