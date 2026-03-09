@@ -1723,24 +1723,28 @@ class TestGetGitInfo:
 class TestGetDailyCost:
     """_get_daily_cost のテスト"""
 
-    def _make_data(self, total_cost_usd: float) -> dict[str, Any]:
+    def _make_data(
+        self, total_cost_usd: float, session_id: str = "sess-a"
+    ) -> dict[str, Any]:
         """テスト用のstdinデータを生成する"""
-        return {"cost": {"total_cost_usd": total_cost_usd}}
+        return {
+            "cost": {"total_cost_usd": total_cost_usd},
+            "session_id": session_id,
+        }
 
     def _today(self) -> str:
         return datetime.now().astimezone().strftime("%Y-%m-%d")
 
     def test_first_call_returns_zero(self, tmp_path: Path) -> None:
-        """初回呼び出しでlast_totalを記録し0.0を返す"""
+        """初回呼び出しでセッションを記録し0.0を返す"""
         cache_file = tmp_path / "daily-cost.json"
-        data = self._make_data(0.0)
 
         with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
-            result = statusline._get_daily_cost(data)
+            result = statusline._get_daily_cost(self._make_data(0.0))
 
         assert result == 0.0
         cache_obj = json.loads(cache_file.read_text())
-        assert cache_obj["last_total"] == 0.0
+        assert cache_obj["sessions"]["sess-a"] == 0.0
         assert cache_obj["accumulated"] == 0.0
 
     def test_accumulates_delta_within_session(self, tmp_path: Path) -> None:
@@ -1749,59 +1753,56 @@ class TestGetDailyCost:
         cache_file.write_text(
             json.dumps({
                 "date": self._today(),
-                "last_total": 2.0,
+                "sessions": {"sess-a": 2.0},
                 "accumulated": 3.0,
             })
         )
-        data = self._make_data(5.0)
 
         with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
-            result = statusline._get_daily_cost(data)
+            result = statusline._get_daily_cost(self._make_data(5.0))
 
         # delta = 5.0 - 2.0 = 3.0, accumulated = 3.0 + 3.0 = 6.0
         assert result is not None
         assert abs(result - 6.0) < 1e-10
 
-    def test_detects_new_session_by_negative_delta(self, tmp_path: Path) -> None:
-        """total_cost_usd低下(新セッション)を検出し現在値を加算する"""
+    def test_new_session_records_without_accumulating(self, tmp_path: Path) -> None:
+        """新規セッションはlast_totalを記録するのみで累積しない"""
         cache_file = tmp_path / "daily-cost.json"
         cache_file.write_text(
             json.dumps({
                 "date": self._today(),
-                "last_total": 10.0,
+                "sessions": {"sess-a": 10.0},
                 "accumulated": 15.0,
             })
         )
-        # 新セッション開始: total_cost_usdが0.5(ほぼ0から開始)
-        data = self._make_data(0.5)
 
         with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
-            result = statusline._get_daily_cost(data)
+            result = statusline._get_daily_cost(self._make_data(0.5, "sess-b"))
 
-        # delta = 0.5 - 10.0 = -9.5 (negative), accumulated = 15.0 + 0.5 = 15.5
+        # 新規セッションは累積しない
         assert result is not None
-        assert abs(result - 15.5) < 1e-10
+        assert abs(result - 15.0) < 1e-10
+        cache_obj = json.loads(cache_file.read_text())
+        assert cache_obj["sessions"]["sess-b"] == 0.5
 
-    def test_date_change_resets_accumulated(self, tmp_path: Path) -> None:
-        """日付が変わると累積値をリセットする"""
+    def test_date_change_resets_all(self, tmp_path: Path) -> None:
+        """日付が変わるとセッション追跡と累積値をリセットする"""
         cache_file = tmp_path / "daily-cost.json"
         cache_file.write_text(
             json.dumps({
                 "date": "1999-01-01",
-                "last_total": 50.0,
+                "sessions": {"old-sess": 50.0},
                 "accumulated": 100.0,
             })
         )
-        data = self._make_data(2.0)
 
         with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
-            result = statusline._get_daily_cost(data)
+            result = statusline._get_daily_cost(self._make_data(2.0))
 
         assert result == 0.0
         cache_obj = json.loads(cache_file.read_text())
         assert cache_obj["date"] == self._today()
-        assert cache_obj["last_total"] == 2.0
-        assert cache_obj["accumulated"] == 0.0
+        assert "old-sess" not in cache_obj["sessions"]
 
     def test_returns_none_without_cost_data(self) -> None:
         """costデータがない場合はNoneを返す"""
@@ -1817,10 +1818,9 @@ class TestGetDailyCost:
         """破損したキャッシュファイルの場合は0から開始する"""
         cache_file = tmp_path / "daily-cost.json"
         cache_file.write_text("not valid json")
-        data = self._make_data(15.0)
 
         with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
-            result = statusline._get_daily_cost(data)
+            result = statusline._get_daily_cost(self._make_data(15.0))
 
         assert result == 0.0
 
@@ -1830,28 +1830,51 @@ class TestGetDailyCost:
 
         with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
             # セッション1: 開始
-            r = statusline._get_daily_cost(self._make_data(0.0))
+            r = statusline._get_daily_cost(self._make_data(0.0, "s1"))
             assert r == 0.0
 
             # セッション1: $3使用
-            r = statusline._get_daily_cost(self._make_data(3.0))
+            r = statusline._get_daily_cost(self._make_data(3.0, "s1"))
             assert r is not None
             assert abs(r - 3.0) < 1e-10
 
             # セッション1: $5まで使用
-            r = statusline._get_daily_cost(self._make_data(5.0))
+            r = statusline._get_daily_cost(self._make_data(5.0, "s1"))
             assert r is not None
             assert abs(r - 5.0) < 1e-10
 
-            # セッション2: 新セッション(total_cost_usdリセット)
-            r = statusline._get_daily_cost(self._make_data(0.0))
+            # セッション2: 新セッション開始(記録のみ)
+            r = statusline._get_daily_cost(self._make_data(0.0, "s2"))
             assert r is not None
             assert abs(r - 5.0) < 1e-10  # 前セッションの$5は保持
 
             # セッション2: $2使用
-            r = statusline._get_daily_cost(self._make_data(2.0))
+            r = statusline._get_daily_cost(self._make_data(2.0, "s2"))
             assert r is not None
             assert abs(r - 7.0) < 1e-10  # $5 + $2 = $7
+
+    def test_concurrent_sessions_no_flipflop(self, tmp_path: Path) -> None:
+        """複数セッションが交互に呼び出してもflip-flopしない"""
+        cache_file = tmp_path / "daily-cost.json"
+
+        with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
+            # セッションA, B同時開始
+            statusline._get_daily_cost(self._make_data(0.0, "a"))
+            statusline._get_daily_cost(self._make_data(0.0, "b"))
+
+            # セッションA: $3, B: $2
+            statusline._get_daily_cost(self._make_data(3.0, "a"))
+            statusline._get_daily_cost(self._make_data(2.0, "b"))
+
+            # 交互に呼び出し(flip-flop)
+            statusline._get_daily_cost(self._make_data(4.0, "a"))
+            statusline._get_daily_cost(self._make_data(2.5, "b"))
+            statusline._get_daily_cost(self._make_data(5.0, "a"))
+            r = statusline._get_daily_cost(self._make_data(3.0, "b"))
+
+            # 正しい合計: A=$5 + B=$3 = $8
+            assert r is not None
+            assert abs(r - 8.0) < 1e-10
 
 
 class TestSegDailyCost:
