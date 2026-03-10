@@ -2,6 +2,34 @@
 
 t-wada（和田卓人）氏が提唱するテスト駆動開発の原則と実践をまとめたリファレンスである。
 
+## テスト信頼性の本質
+
+t-wada氏の2024年講演における核心メッセージを上位概念として示す。全ての原則はこの本質に基づく。
+
+### 自動テストの真の目的
+
+自動テストの目的は「信頼性の高い実行結果に短い時間で到達する状態を保つこと」である。テストスイートが信頼できなければ、開発者はテスト結果を無視し始め、テストの存在意義が失われる。
+
+### テストの「嘘」を排除する
+
+テストの「嘘」には2種類ある:
+
+- **偽陰性 (False Negative)**: コードが壊れているのにテストがパスする（見逃し）
+- **偽陽性 (False Positive)**: コードが正しいのにテストが失敗する（誤警報）
+
+どちらもテストスイートへの信頼を損なう。偽陰性はバグの見逃しに直結し、偽陽性は開発者にテスト失敗を無視する習慣を植え付ける。
+
+### 設計フィードバック
+
+テストが書きにくいコードは設計に問題がある。テストの書きにくさは設計の歪みを示すシグナルであり、テストを書くことで設計の改善点が浮き彫りになる。
+
+### 質とスピード
+
+質とスピードはトレードオフではない。内部品質（テスト、設計、リファクタリング）への投資は、中長期的にはスピードの向上として返ってくる。テストを書かないことで得られる短期的なスピードは、技術的負債として蓄積される。
+
+> 出典: t-wada 2024年講演「自動テストの嘘をなくす」
+> 出典: t-wada 講演「質とスピード」 https://speakerdeck.com/twada/quality-and-speed
+
 ## Kent BeckのTDD 5ステップ
 
 TDDの基本サイクルはKent Beckが定義した以下の5ステップで構成される:
@@ -44,6 +72,36 @@ def test_add_item_increases_count(self) -> None:
 
     # Assert
     assert cart.count == 1
+```
+
+**TypeScript:**
+```typescript
+it("increases count when item is added", () => {
+  // Arrange
+  const cart = new ShoppingCart();
+  const item = new Item("apple", 100);
+
+  // Act
+  cart.add(item);
+
+  // Assert
+  expect(cart.count).toBe(1);
+});
+```
+
+**Go:**
+```go
+func TestAddItem_IncreasesCount(t *testing.T) {
+    // Arrange
+    cart := NewShoppingCart()
+    item := NewItem("apple", 100)
+
+    // Act
+    cart.Add(item)
+
+    // Assert
+    assert.Equal(t, 1, cart.Count())
+}
 ```
 
 ### 悪い例
@@ -132,6 +190,36 @@ assert len(items) == 3
 # pytest.raisesでメッセージも検証
 with pytest.raises(ValueError, match="must be positive"):
     create_item(-1)
+```
+
+**TypeScript:**
+```typescript
+// 良い: 期待値と実際値が明確
+expect(result).toBe(42);
+expect(user.name).toBe("Alice");
+expect(items).toHaveLength(3);
+expect(() => createItem(-1)).toThrow("must be positive");
+
+// 悪い: 情報量が少ない
+expect(result).toBeTruthy();
+expect(items.length).toBeTruthy();
+```
+
+**Go:**
+```go
+// 良い: エラーメッセージに期待値と実際値が含まれる
+if got != want {
+    t.Errorf("Calculate() = %d, want %d", got, want)
+}
+
+// testifyで明確なアサーション
+assert.Equal(t, 42, result)
+assert.Contains(t, err.Error(), "must be positive")
+
+// 悪い: 情報量が少ない
+if result == false {
+    t.Fail()
+}
 ```
 
 ### 悪い例
@@ -272,18 +360,39 @@ def test_process_order(self) -> None:
 > 出典: Martin Fowler, "Mocks Aren't Stubs" (2007)
 > https://martinfowler.com/articles/mocksArentStubs.html
 
-## 原則7: 偽陰性の回避
+## 原則7: テスト信頼性（偽陽性・偽陰性の回避）
 
 ### 定義
 
-テストにはアサーションが必ず含まれていなければならない。アサーションのないテストは常にパスするため、テストとして機能しない。
+テストは信頼性が高くなければならない。偽陰性（見逃し）と偽陽性（誤警報）の両方を排除し、テスト結果が常に真実を反映する状態を保つ。
 
-### 根拠
+### 偽陰性 (False Negative) の回避
 
-アサーションゼロのテストは「偽陰性（false negative）」を生む。コードが壊れていてもテストがパスするため、テストスイートへの信頼を損なう。
+アサーションゼロのテストは常にパスするため、テストとして機能しない。コードが壊れていてもテストがパスし、バグを見逃す。
+
+**検出観点**:
+- `assert` 文やアサーション関数が1つも無いテスト
+- 例外検証のみでメッセージ検証がないテスト
+- `pass` だけのテストメソッド
+- 例外を握りつぶしているテスト（`try/except` で `pass`）
+
+### 偽陽性 (False Positive) の回避
+
+コードが正しいのにテストが失敗する状態は、開発者にテスト失敗を無視する習慣を植え付け、テストスイートへの信頼を損なう。
+
+**脆いテスト (Brittle Tests)**:
+- 実装の内部詳細に依存するテスト（リファクタリングでテストが壊れる）
+- パブリックAPIではなくプライベートメソッドをテストしている
+- モックの戻り値が実装の内部構造に依存している
+
+**フレイキーテスト (Flaky Tests)**:
+- タイムスタンプ、乱数、実行順序等の非決定的要素に依存
+- テスト間の状態共有（グローバル状態、共有データベース等）
+- タイムアウトや競合条件に依存するテスト
 
 ### 良い例
 
+**Python:**
 ```python
 def test_parse_raises_on_invalid_input(self) -> None:
     """不正な入力で例外が発生すること"""
@@ -291,8 +400,36 @@ def test_parse_raises_on_invalid_input(self) -> None:
         parse("invalid")
 ```
 
+**TypeScript:**
+```typescript
+it("rejects invalid input with descriptive error", () => {
+  expect(() => parse("invalid")).toThrow("invalid format");
+});
+```
+
+**React (ユーザー視点でテスト):**
+```typescript
+it("shows error message when form submission fails", async () => {
+  const user = userEvent.setup();
+  render(<LoginForm />);
+  // パブリックなUI要素を通じてテストする
+  await user.click(screen.getByRole("button", { name: "送信" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("入力が不正です");
+});
+```
+
+**Go:**
+```go
+func TestParse_InvalidInput(t *testing.T) {
+    _, err := Parse("invalid")
+    require.Error(t, err)
+    assert.Contains(t, err.Error(), "invalid format")
+}
+```
+
 ### 悪い例
 
+**Python (偽陰性):**
 ```python
 def test_process(self) -> None:
     """処理が正常に完了すること"""
@@ -307,8 +444,40 @@ def test_no_error(self) -> None:
         pass  # 例外を握りつぶしている
 ```
 
+**React (偽陽性 - 実装詳細依存):**
+```typescript
+// 悪い: 内部stateに依存（リファクタリングで壊れる）
+it("updates internal state", () => {
+  const { result } = renderHook(() => useCounter());
+  act(() => result.current.increment());
+  // コンポーネントの内部実装に依存している
+  expect(result.current.count).toBe(1);
+});
+
+// 悪い: getByTestIdの過剰使用
+it("shows title", () => {
+  render(<Header title="Hello" />);
+  expect(screen.getByTestId("header-title")).toHaveTextContent("Hello");
+  // getByRoleやgetByTextを使うべき
+});
+```
+
+**Go (偽陽性 - 変数キャプチャ漏れ):**
+```go
+// 悪い: t.Parallel()使用時の変数キャプチャ漏れ（Go 1.21以前）
+for _, tt := range tests {
+    t.Run(tt.name, func(t *testing.T) {
+        t.Parallel()
+        // ttがループ変数を参照 - 最後の値でのみテストされる
+        got := Add(tt.a, tt.b)
+        assert.Equal(t, tt.want, got)
+    })
+}
+```
+
 > 出典: t-wada, "テスト駆動開発" 講演資料
 > https://speakerdeck.com/twada
+> 出典: t-wada 2024年講演「自動テストの嘘をなくす」
 
 ## 原則8: テストサイズ（テストピラミッド）
 
