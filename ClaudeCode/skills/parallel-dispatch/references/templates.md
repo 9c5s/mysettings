@@ -64,7 +64,7 @@
 
 ### 入力
 
-```
+```text
 /parallel-dispatch /tdd /simplify -- src/utils/parser.py
 ```
 
@@ -129,7 +129,7 @@
 
 ## サブエージェントプロンプト
 
-```
+```markdown
 あなたは指定されたスキルの観点でコード分析を行うエージェントである。
 
 ## 実行するスキル
