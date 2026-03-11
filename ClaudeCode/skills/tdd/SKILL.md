@@ -13,7 +13,7 @@ user-invocable: true
 
 以下のチェックリストをコピーして進捗を追跡する:
 
-```
+```text
 TDDチェック進捗:
 - [ ] Step 1: テストファイル特定・言語検出
 - [ ] Step 2: リファレンス読み込み
@@ -39,7 +39,7 @@ Globツールで以下のパターンを並列検索する:
 | 言語 | パターン |
 |---|---|
 | Python | `tests/**/*.py`, `**/test_*.py`, `**/*_test.py`, `**/*_spec.py` |
-| TS/JS | `**/*.test.ts`, `**/*.spec.ts`, `**/*.test.tsx`, `**/*.spec.tsx`, `**/*.test.js`, `**/*.spec.js`, `**/__tests__/**/*.[jt]s?(x)` |
+| TS/JS | `**/*.test.ts`, `**/*.spec.ts`, `**/*.test.tsx`, `**/*.spec.tsx`, `**/*.test.js`, `**/*.spec.js`, `**/*.test.jsx`, `**/*.spec.jsx`, `**/__tests__/**/*.[jt]s?(x)` |
 | Go | `**/*_test.go` |
 
 **第2段階: 汎用検出（第1段階でヒットしない場合）**

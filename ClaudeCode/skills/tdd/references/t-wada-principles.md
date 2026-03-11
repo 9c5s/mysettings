@@ -166,30 +166,43 @@ def test_no_error(self) -> None:
         pass
 ```
 
-### コード例（偽陽性 - 言語固有パターン）
+### コード例（偽陽性 - 汎用パターン）
 
-**React (実装詳細依存):**
-```typescript
-// 悪い: getByTestIdの過剰使用
-it("shows title", () => {
-  render(<Header title="Hello" />);
-  expect(screen.getByTestId("header-title")).toHaveTextContent("Hello");
-  // getByRoleやgetByTextを使うべき
-});
+**脆いテスト（実装詳細依存）**:
+
+```text
+// 悪い: 内部構造に依存したテスト
+test "タイトルを表示する":
+    component = render(Header(title="Hello"))
+    element = find_by_internal_id(component, "header-title")  // 実装詳細に依存
+    assert element.text == "Hello"
+
+// 良い: パブリックAPIを通じてテスト
+test "タイトルを表示する":
+    component = render(Header(title="Hello"))
+    element = find_by_role(component, "heading")  // ユーザーから見える属性で取得
+    assert element.text == "Hello"
 ```
 
-**Go (変数キャプチャ漏れ):**
-```go
-// 悪い: t.Parallel()使用時の変数キャプチャ漏れ（Go 1.21以前）
-for _, tt := range tests {
-    t.Run(tt.name, func(t *testing.T) {
-        t.Parallel()
-        // ttがループ変数を参照 - 最後の値でのみテストされる
-        got := Add(tt.a, tt.b)
-        assert.Equal(t, tt.want, got)
-    })
-}
+**並行テストの変数キャプチャ漏れ**:
+
+```text
+// 悪い: ループ変数を並行テスト内で直接参照
+for each case in test_cases:
+    run_parallel_subtest(case.name):
+        // caseがループ変数を参照 - 最後の値でのみテストされる恐れ
+        result = function_under_test(case.input)
+        assert result == case.expected
+
+// 良い: ループ変数をローカルにコピー
+for each case in test_cases:
+    local_case = case  // 変数をコピー
+    run_parallel_subtest(local_case.name):
+        result = function_under_test(local_case.input)
+        assert result == local_case.expected
 ```
+
+※ 言語固有の偽陽性パターンは `references/language-patterns.md` の各言語セクションを参照すること。
 
 > 出典: t-wada, "テスト駆動開発" 講演資料 https://speakerdeck.com/twada
 > 出典: t-wada 2024年講演「自動テストの嘘をなくす」
