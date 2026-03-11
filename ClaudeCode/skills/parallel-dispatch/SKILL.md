@@ -30,7 +30,7 @@ Dispatch進捗:
 # ファイル指定
 /parallel-dispatch /tdd /simplify -- scripts/audio_normalize.py
 
-# ブランチ指定(mainとのdiffから変更ファイルを自動特定)
+# ブランチ指定(メインブランチとのdiffから変更ファイルを自動特定)
 /parallel-dispatch /tdd /code-review:code-review -- feat/audio-normalize
 
 # 混在(スキル名は/で始まるため自動判別)
@@ -49,8 +49,9 @@ Dispatch進捗:
 ### Step 1: 入力解析
 
 **ブランチ名が指定された場合:**
+メインブランチ名をCLAUDE.mdから取得する(未設定の場合は `main`)。
 ```bash
-git diff main...<branch-name> --name-only
+git diff <main-branch>...<branch-name> --name-only
 ```
 で変更ファイル一覧を取得し、対象ファイルとする。
 ブランチが存在しない場合はエラーを報告する。
