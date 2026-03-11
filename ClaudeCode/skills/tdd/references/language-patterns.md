@@ -43,7 +43,7 @@
 - 以下のディレクトリ配下に配置される:
   - `tests/`, `test/`, `__tests__/`, `spec/`, `specs/`
   - `src/test/` (Java/Kotlin)
-  - `*_test/` (Go - パッケージ内)
+  - `*_test.go` ファイルがパッケージと同じディレクトリに配置される (Go)
 
 ### 1-3. テストフレームワーク設定ファイルの検出
 
@@ -83,7 +83,7 @@
 
 ### TypeScript / JavaScript
 
-**Glob**: `**/*.test.ts`, `**/*.spec.ts`, `**/*.test.tsx`, `**/*.spec.tsx`, `**/*.test.js`, `**/*.spec.js`, `**/__tests__/**/*.[jt]s?(x)`
+**Glob**: `**/*.test.ts`, `**/*.spec.ts`, `**/*.test.tsx`, `**/*.spec.tsx`, `**/*.test.js`, `**/*.spec.js`, `**/*.test.jsx`, `**/*.spec.jsx`, `**/__tests__/**/*.[jt]s?(x)`
 **フレームワーク**: Vitest (推奨), Jest
 **注意点**:
 - `describe.each` / `it.each` でパラメータ化テストを行う
@@ -116,6 +116,17 @@
 - `container.querySelector` の使用 - Testing Libraryのクエリを使う
 - `act()` の手動呼び出し - Testing Libraryが内部で処理する
 
+**偽陽性コード例（実装詳細依存）**:
+
+```typescript
+// 悪い: getByTestIdの過剰使用
+it("shows title", () => {
+  render(<Header title="Hello" />);
+  expect(screen.getByTestId("header-title")).toHaveTextContent("Hello");
+  // getByRoleやgetByTextを使うべき
+});
+```
+
 ---
 
 ### Go
@@ -127,6 +138,20 @@
 - `t.Helper()` でヘルパー関数のスタックトレースを改善する
 - `t.Parallel()` 使用時はループ変数のキャプチャに注意する（Go 1.22以降は不要）
 - ブラックボックステストには `_test` パッケージサフィックスを使用する
+
+**偽陽性コード例（t.Parallel()変数キャプチャ漏れ）**:
+
+```go
+// 悪い: t.Parallel()使用時の変数キャプチャ漏れ（Go 1.21以前）
+for _, tt := range tests {
+    t.Run(tt.name, func(t *testing.T) {
+        t.Parallel()
+        // ttがループ変数を参照 - 最後の値でのみテストされる
+        got := Add(tt.a, tt.b)
+        assert.Equal(t, tt.want, got)
+    })
+}
+```
 
 ---
 
