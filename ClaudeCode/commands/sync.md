@@ -22,6 +22,10 @@ git remote prune origin
 # マージ済みローカルブランチの削除
 for branch in $(git branch --format='%(refname:short)' | grep -v "^${main_branch}$"); do
   if [ -z "$(git cherry "$main_branch" "$branch" 2>/dev/null | grep '^\+')" ]; then
+    # rebase merge / cherry-pick: パッチIDが一致
+    git branch -D "$branch"
+  elif [ "$(git for-each-ref --format='%(upstream:track)' "refs/heads/$branch")" = "[gone]" ]; then
+    # squash merge: upstream設定済みだがリモートブランチ削除済み
     git branch -D "$branch"
   else
     echo "Skipped: $branch (has unmerged commits)"
