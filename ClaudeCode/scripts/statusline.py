@@ -788,6 +788,9 @@ def _seg_model(data: dict[str, Any]) -> Segment | None:
     else:
         model_text = display_name
 
+    # "Opus 4.6 (1M context)" -> "Opus 4.6 (1M)" のように短縮する
+    model_text = model_text.replace(" context)", ")")
+
     label = f"{_icons.MODEL} {model_text}"
     return Segment(text=label)
 

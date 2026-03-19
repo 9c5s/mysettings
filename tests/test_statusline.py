@@ -1025,6 +1025,36 @@ class TestSegModel:
         assert "4.6 4.6" not in seg.text
         assert "Opus 4.6" in seg.text
 
+    def test_shortens_context_suffix_in_display_name(self) -> None:
+        """display_nameの"(1M context)"を"(1M)"に短縮する"""
+        data = {
+            "model": {"display_name": "Opus 4.6 (1M context)", "id": "claude-opus-4-6"}
+        }
+        seg = statusline._seg_model(data)
+        assert seg is not None
+        assert "(1M)" in seg.text
+        assert "context" not in seg.text
+
+    def test_shortens_200k_context_suffix(self) -> None:
+        """display_nameの"(200K context)"も短縮する"""
+        data = {
+            "model": {
+                "display_name": "Sonnet 4.5 (200K context)",
+                "id": "claude-sonnet-4-5-20250514",
+            },
+        }
+        seg = statusline._seg_model(data)
+        assert seg is not None
+        assert "(200K)" in seg.text
+        assert "context" not in seg.text
+
+    def test_no_context_suffix_unchanged(self) -> None:
+        """コンテキスト情報がないdisplay_nameはそのまま"""
+        data = {"model": {"display_name": "Opus", "id": "claude-opus-4-6"}}
+        seg = statusline._seg_model(data)
+        assert seg is not None
+        assert "Opus 4.6" in seg.text
+
     def test_no_version_extracted(self) -> None:
         """バージョン抽出できない場合はdisplay_nameのみ"""
         data = {"model": {"display_name": "CustomModel", "id": "custom"}}
