@@ -19,3 +19,5 @@
 	defaultbranch = main
 [pull]
 	rebase = true
+[coderabbit]
+	machineId = cli/9f56e88424404ceca69ee41fc2515ba8
