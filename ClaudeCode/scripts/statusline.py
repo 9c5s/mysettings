@@ -225,23 +225,15 @@ def _color_for_utilization(pct: float) -> _Color:
     return _Color.GREEN
 
 
-def _parse_iso_to_local(iso_str: str) -> datetime:
-    """ISO 8601文字列をローカルタイムゾーンのdatetimeに変換する"""
-    dt = datetime.fromisoformat(iso_str)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    return dt.astimezone()
-
-
-def _format_reset_time_short(iso_str: str) -> str:
+def _format_reset_time_short(ts: float) -> str:
     """リセット時刻を "H:MM" 形式でフォーマットする(0埋めなし)"""
-    local_dt = _parse_iso_to_local(iso_str)
+    local_dt = datetime.fromtimestamp(ts, tz=UTC).astimezone()
     return f"{local_dt.hour}:{local_dt.minute:02d}"
 
 
-def _format_reset_date(iso_str: str) -> str:
+def _format_reset_date(ts: float) -> str:
     """リセット時刻を "M/D H:MM" 形式でフォーマットする(0埋めなし)"""
-    local_dt = _parse_iso_to_local(iso_str)
+    local_dt = datetime.fromtimestamp(ts, tz=UTC).astimezone()
     return f"{local_dt.month}/{local_dt.day} {local_dt.hour}:{local_dt.minute:02d}"
 
 
@@ -843,7 +835,7 @@ def _seg_rate_common(
     usage_key: str,
     period_label: str,
     icon: str,
-    fmt_reset: Callable[[str], str],
+    fmt_reset: Callable[[int | float], str],
 ) -> Segment | None:
     """レートリミットセグメントの共通生成ロジック"""
     usage = data.get("_usage")
@@ -854,12 +846,12 @@ def _seg_rate_common(
     if not isinstance(bucket, dict):
         return None
 
-    resets_at = bucket.get("resets_at")
     pct_val = _safe_float(bucket.get("utilization"))
-    if pct_val is None or resets_at is None:
+    ts = _safe_float(bucket.get("resets_at"))
+    if pct_val is None or ts is None:
         return None
     try:
-        reset_str = fmt_reset(str(resets_at))
+        reset_str = fmt_reset(ts)
     except ValueError, TypeError:
         return None
 
