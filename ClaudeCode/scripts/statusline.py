@@ -19,7 +19,6 @@ import contextlib
 import json
 import locale
 import os
-import platform
 import subprocess
 import sys
 import tempfile
@@ -82,9 +81,6 @@ class _Icons:
 
 
 _SEPARATOR = " \u2502 "  # " │ "
-_CACHE_TTL = 360  # 6分
-_CACHE_PATH = Path(tempfile.gettempdir()) / "claude-usage-cache.json"
-_API_URL = "https://api.anthropic.com/api/oauth/usage"
 _API_TIMEOUT = 5  # 秒
 _SUBPROCESS_TIMEOUT = 3  # 秒
 _GIT_CACHE_TTL = 5  # 秒
@@ -464,86 +460,6 @@ def _resolve_currency(currency_arg: str | None) -> str:
         return locale_currency
 
     return "USD"
-
-
-def _get_oauth_token() -> str | None:
-    """OAuth認証トークンを取得する
-
-    以下の順に試行する:
-    1. ~/.claude/.credentials.json からファイル読み取り(Windows/Linux)
-    2. macOSのKeychainから取得
-    """
-    # 1. クレデンシャルファイルから読む
-    cred_path = Path.home() / ".claude" / ".credentials.json"
-    with contextlib.suppress(
-        OSError, json.JSONDecodeError, KeyError, TypeError, AttributeError
-    ):
-        cred_text = cred_path.read_text(encoding="utf-8")
-        cred_data = json.loads(cred_text)
-        token = cred_data.get("claudeAiOauth", {}).get("accessToken")
-        if token:
-            return str(token)
-
-    # 2. macOS Keychainから取得
-    if platform.system() == "Darwin":
-        with contextlib.suppress(
-            subprocess.TimeoutExpired,
-            subprocess.SubprocessError,
-            json.JSONDecodeError,
-            KeyError,
-            TypeError,
-            OSError,
-        ):
-            result = subprocess.run(
-                [  # noqa: S607
-                    "security",
-                    "find-generic-password",
-                    "-s",
-                    "Claude Code-credentials",
-                    "-w",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=_SUBPROCESS_TIMEOUT,
-                check=False,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                keychain_data = json.loads(result.stdout.strip())
-                token = keychain_data.get("claudeAiOauth", {}).get("accessToken")
-                if token:
-                    return str(token)
-
-    return None
-
-
-def _fetch_usage(token: str) -> dict[str, Any]:
-    """Anthropic Usage APIからレートリミット情報を取得する"""
-    req = Request(
-        _API_URL,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "anthropic-beta": "oauth-2025-04-20",
-        },
-    )
-    with urlopen(req, timeout=_API_TIMEOUT) as resp:  # noqa: S310
-        body = resp.read().decode("utf-8")
-    return json.loads(body)
-
-
-def _get_usage() -> dict[str, Any] | None:
-    """キャッシュ付きでUsage APIからデータを取得する
-
-    キャッシュのTTLは_CACHE_TTL秒である
-    API呼び出しに失敗した場合、期限切れキャッシュも使用する
-    """
-
-    def fetch() -> dict[str, Any]:
-        token = _get_oauth_token()
-        if token is None:
-            raise RuntimeError
-        return _fetch_usage(token)
-
-    return _cached_fetch(_CACHE_PATH, _CACHE_TTL, fetch)
 
 
 def _get_cwd(data: dict[str, Any]) -> str:
@@ -1005,11 +921,6 @@ def main() -> None:
     git_info = _get_git_info(cwd) if cwd else None
     if git_info is not None:
         data["_git"] = git_info
-
-    # レートリミット情報を取得してdataに格納する
-    usage = _get_usage()
-    if usage is not None:
-        data["_usage"] = usage
 
     lines_config = _parse_segments(args.segments)
     lines = _build_lines(data, lines_config)
