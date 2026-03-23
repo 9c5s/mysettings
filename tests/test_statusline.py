@@ -769,56 +769,37 @@ class TestOsc8Link:
         assert result == "\033]8;;https://example.com\a\033]8;;\a"
 
 
-class TestParseIsoToLocal:
-    """_parse_iso_to_local のテスト"""
-
-    def test_naive_datetime_treated_as_utc(self) -> None:
-        """タイムゾーンなしの入力はUTCとして扱われる"""
-        result = statusline._parse_iso_to_local("2025-01-15T14:30:00")
-        expected_utc = datetime(2025, 1, 15, 14, 30, tzinfo=UTC)
-        assert result.timestamp() == expected_utc.timestamp()
-
-    def test_aware_datetime_preserves_instant(self) -> None:
-        """タイムゾーン付きの入力は正しい時刻を保持する"""
-        result = statusline._parse_iso_to_local("2025-01-15T14:30:00+09:00")
-        # +09:00なのでUTCでは05:30
-        expected_utc = datetime(2025, 1, 15, 5, 30, tzinfo=UTC)
-        assert result.timestamp() == expected_utc.timestamp()
-
-    def test_result_has_timezone(self) -> None:
-        """結果にはタイムゾーン情報が付与される"""
-        result = statusline._parse_iso_to_local("2025-01-15T14:30:00Z")
-        assert result.tzinfo is not None
-
-    def test_utc_suffix(self) -> None:
-        """Z付きのISO文字列をパースできる"""
-        result = statusline._parse_iso_to_local("2025-06-01T00:00:00Z")
-        expected_utc = datetime(2025, 6, 1, 0, 0, tzinfo=UTC)
-        assert result.timestamp() == expected_utc.timestamp()
-
-
 class TestFormatResetTimeShort:
     """_format_reset_time_short のテスト"""
 
     def test_formats_as_h_mm(self) -> None:
         """H:MM形式でフォーマットされる"""
-        fixed_dt = datetime(2025, 1, 15, 14, 30, tzinfo=UTC)
-        with patch("statusline._parse_iso_to_local", return_value=fixed_dt):
-            result = statusline._format_reset_time_short("2025-01-15T14:30:00Z")
+        ts = datetime(2025, 1, 15, 14, 30, tzinfo=UTC).timestamp()
+        with patch("statusline.datetime") as mock_dt:
+            mock_dt.fromtimestamp.return_value.astimezone.return_value = datetime(
+                2025, 1, 15, 14, 30, tzinfo=UTC
+            )
+            result = statusline._format_reset_time_short(ts)
         assert result == "14:30"
 
     def test_no_zero_padding_hour(self) -> None:
         """時間は0埋めされない"""
-        fixed_dt = datetime(2025, 1, 15, 9, 5, tzinfo=UTC)
-        with patch("statusline._parse_iso_to_local", return_value=fixed_dt):
-            result = statusline._format_reset_time_short("2025-01-15T09:05:00Z")
+        ts = datetime(2025, 1, 15, 9, 5, tzinfo=UTC).timestamp()
+        with patch("statusline.datetime") as mock_dt:
+            mock_dt.fromtimestamp.return_value.astimezone.return_value = datetime(
+                2025, 1, 15, 9, 5, tzinfo=UTC
+            )
+            result = statusline._format_reset_time_short(ts)
         assert result == "9:05"
 
     def test_midnight(self) -> None:
         """0時の表示"""
-        fixed_dt = datetime(2025, 1, 15, 0, 0, tzinfo=UTC)
-        with patch("statusline._parse_iso_to_local", return_value=fixed_dt):
-            result = statusline._format_reset_time_short("2025-01-15T00:00:00Z")
+        ts = datetime(2025, 1, 15, 0, 0, tzinfo=UTC).timestamp()
+        with patch("statusline.datetime") as mock_dt:
+            mock_dt.fromtimestamp.return_value.astimezone.return_value = datetime(
+                2025, 1, 15, 0, 0, tzinfo=UTC
+            )
+            result = statusline._format_reset_time_short(ts)
         assert result == "0:00"
 
 
@@ -827,16 +808,22 @@ class TestFormatResetDate:
 
     def test_formats_as_m_d_h_mm(self) -> None:
         """M/D H:MM形式でフォーマットされる"""
-        fixed_dt = datetime(2025, 1, 15, 14, 30, tzinfo=UTC)
-        with patch("statusline._parse_iso_to_local", return_value=fixed_dt):
-            result = statusline._format_reset_date("2025-01-15T14:30:00Z")
+        ts = datetime(2025, 1, 15, 14, 30, tzinfo=UTC).timestamp()
+        with patch("statusline.datetime") as mock_dt:
+            mock_dt.fromtimestamp.return_value.astimezone.return_value = datetime(
+                2025, 1, 15, 14, 30, tzinfo=UTC
+            )
+            result = statusline._format_reset_date(ts)
         assert result == "1/15 14:30"
 
     def test_no_zero_padding(self) -> None:
         """月・日・時は0埋めされない"""
-        fixed_dt = datetime(2025, 3, 5, 9, 5, tzinfo=UTC)
-        with patch("statusline._parse_iso_to_local", return_value=fixed_dt):
-            result = statusline._format_reset_date("2025-03-05T09:05:00Z")
+        ts = datetime(2025, 3, 5, 9, 5, tzinfo=UTC).timestamp()
+        with patch("statusline.datetime") as mock_dt:
+            mock_dt.fromtimestamp.return_value.astimezone.return_value = datetime(
+                2025, 3, 5, 9, 5, tzinfo=UTC
+            )
+            result = statusline._format_reset_date(ts)
         assert result == "3/5 9:05"
 
 
@@ -1167,7 +1154,7 @@ class TestSegRateCommon:
             "_usage": {
                 "five_hour": {
                     "utilization": 45.0,
-                    "resets_at": "2025-01-15T14:30:00Z",
+                    "resets_at": 1736951400.0,
                 },
             },
         }
@@ -1213,7 +1200,7 @@ class TestSegRateCommon:
             "_usage": {
                 "five_hour": {
                     "utilization": 90.0,
-                    "resets_at": "2025-01-15T14:30:00Z",
+                    "resets_at": 1736951400.0,
                 },
             },
         }
@@ -1261,7 +1248,7 @@ class TestSegRate5hAnd7d:
             "_usage": {
                 "five_hour": {
                     "utilization": 30.0,
-                    "resets_at": "2025-01-15T14:30:00Z",
+                    "resets_at": 1736951400.0,
                 },
             },
         }
@@ -1277,7 +1264,7 @@ class TestSegRate5hAnd7d:
             "_usage": {
                 "seven_day": {
                     "utilization": 50.0,
-                    "resets_at": "2025-01-20T00:00:00Z",
+                    "resets_at": 1737331200.0,
                 },
             },
         }
