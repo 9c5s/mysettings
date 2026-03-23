@@ -82,6 +82,16 @@ _FULL_STDIN_SAMPLE: dict[str, Any] = {
         "original_cwd": "/path/to/project",
         "original_branch": "main",
     },
+    "rate_limits": {
+        "five_hour": {
+            "used_percentage": 42,
+            "resets_at": 1736949000,
+        },
+        "seven_day": {
+            "used_percentage": 66,
+            "resets_at": 1737331200,
+        },
+    },
 }
 
 
@@ -1296,14 +1306,14 @@ class TestBuildLines:
             },
             "model": {"display_name": "Opus", "id": "claude-opus-4-6"},
             "context_window": {"used_percentage": 45},
-            "_usage": {
+            "rate_limits": {
                 "five_hour": {
-                    "utilization": 30.0,
-                    "resets_at": "2025-01-15T14:30:00Z",
+                    "used_percentage": 30,
+                    "resets_at": 1736949000,
                 },
                 "seven_day": {
-                    "utilization": 50.0,
-                    "resets_at": "2025-01-20T00:00:00Z",
+                    "used_percentage": 50,
+                    "resets_at": 1737331200,
                 },
             },
             "cost": {"total_cost_usd": 1.23},
@@ -1368,9 +1378,11 @@ class TestBuildLines:
         with (
             patch.object(statusline, "_currency", "USD"),
             patch.object(statusline, "_SESSION_COST_CACHE_PATH", cache_path),
+            patch("statusline._format_reset_time_short", return_value="14:30"),
+            patch("statusline._format_reset_date", return_value="1/20 0:00"),
         ):
             lines = statusline._build_lines(dict(_FULL_STDIN_SAMPLE))
-        # stdinデータのみ(runtime注入なし)で3行: project, model+context, cost
+        # stdinデータのみ(runtime注入なし)で3行: project, model+context+rate, cost
         assert len(lines) == 3
         assert "myproject" in lines[0]  # workspace.current_dirが優先される
         assert "Opus 4.6" in lines[1]
