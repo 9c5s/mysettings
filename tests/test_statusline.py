@@ -1151,9 +1151,9 @@ class TestSegRateCommon:
     def test_displays_rate_info(self) -> None:
         """レートリミット情報を表示する"""
         data = {
-            "_usage": {
+            "rate_limits": {
                 "five_hour": {
-                    "utilization": 45.0,
+                    "used_percentage": 45.0,
                     "resets_at": 1736951400.0,
                 },
             },
@@ -1171,8 +1171,8 @@ class TestSegRateCommon:
         assert "45%" in seg.text
         assert "14:30" in seg.text
 
-    def test_no_usage_returns_none(self) -> None:
-        """_usageがない場合はNone"""
+    def test_no_rate_limits_returns_none(self) -> None:
+        """rate_limitsがない場合はNone"""
         seg = statusline._seg_rate_common(
             {}, "five_hour", "5h", "\u23f0", statusline._format_reset_time_short
         )
@@ -1180,15 +1180,15 @@ class TestSegRateCommon:
 
     def test_no_bucket_returns_none(self) -> None:
         """指定のバケットがない場合はNone"""
-        data: dict[str, Any] = {"_usage": {}}
+        data: dict[str, Any] = {"rate_limits": {}}
         seg = statusline._seg_rate_common(
             data, "five_hour", "5h", "\u23f0", statusline._format_reset_time_short
         )
         assert seg is None
 
-    def test_missing_utilization_returns_none(self) -> None:
-        """utilizationがない場合はNone"""
-        data = {"_usage": {"five_hour": {"resets_at": "2025-01-15T14:30:00Z"}}}
+    def test_missing_used_percentage_returns_none(self) -> None:
+        """used_percentageがない場合はNone"""
+        data = {"rate_limits": {"five_hour": {"resets_at": "2025-01-15T14:30:00Z"}}}
         seg = statusline._seg_rate_common(
             data, "five_hour", "5h", "\u23f0", statusline._format_reset_time_short
         )
@@ -1197,9 +1197,9 @@ class TestSegRateCommon:
     def test_high_utilization_uses_red(self) -> None:
         """80%以上はREDカラー"""
         data = {
-            "_usage": {
+            "rate_limits": {
                 "five_hour": {
-                    "utilization": 90.0,
+                    "used_percentage": 90.0,
                     "resets_at": 1736951400.0,
                 },
             },
@@ -1215,12 +1215,12 @@ class TestSegRateCommon:
         assert seg is not None
         assert "\033[31m" in seg.text
 
-    def test_non_numeric_utilization_returns_none(self) -> None:
-        """数値変換できないutilizationの場合はNone"""
+    def test_non_numeric_used_percentage_returns_none(self) -> None:
+        """数値変換できないused_percentageの場合はNone"""
         data = {
-            "_usage": {
+            "rate_limits": {
                 "five_hour": {
-                    "utilization": "abc",
+                    "used_percentage": "abc",
                     "resets_at": "2025-01-15T14:30:00Z",
                 },
             },
@@ -1232,7 +1232,7 @@ class TestSegRateCommon:
 
     def test_missing_resets_at_returns_none(self) -> None:
         """resets_atがない場合はNone"""
-        data = {"_usage": {"five_hour": {"utilization": 45.0}}}
+        data = {"rate_limits": {"five_hour": {"used_percentage": 45.0}}}
         seg = statusline._seg_rate_common(
             data, "five_hour", "5h", "\u23f0", statusline._format_reset_time_short
         )
@@ -1245,9 +1245,9 @@ class TestSegRate5hAnd7d:
     def test_seg_rate_5h_returns_segment(self) -> None:
         """5hレートリミットセグメントを返す"""
         data = {
-            "_usage": {
+            "rate_limits": {
                 "five_hour": {
-                    "utilization": 30.0,
+                    "used_percentage": 30.0,
                     "resets_at": 1736951400.0,
                 },
             },
@@ -1261,9 +1261,9 @@ class TestSegRate5hAnd7d:
     def test_seg_rate_7d_returns_segment(self) -> None:
         """7dレートリミットセグメントを返す"""
         data = {
-            "_usage": {
+            "rate_limits": {
                 "seven_day": {
-                    "utilization": 50.0,
+                    "used_percentage": 50.0,
                     "resets_at": 1737331200.0,
                 },
             },

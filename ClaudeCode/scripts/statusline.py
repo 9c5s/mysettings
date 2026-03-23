@@ -838,7 +838,7 @@ def _seg_rate_common(
     fmt_reset: Callable[[int | float], str],
 ) -> Segment | None:
     """レートリミットセグメントの共通生成ロジック"""
-    usage = data.get("_usage")
+    usage = data.get("rate_limits")
     if not isinstance(usage, dict):
         return None
 
@@ -846,7 +846,7 @@ def _seg_rate_common(
     if not isinstance(bucket, dict):
         return None
 
-    pct_val = _safe_float(bucket.get("utilization"))
+    pct_val = _safe_float(bucket.get("used_percentage"))
     ts = _safe_float(bucket.get("resets_at"))
     if pct_val is None or ts is None:
         return None
