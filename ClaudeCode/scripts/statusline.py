@@ -18,6 +18,7 @@ import argparse
 import contextlib
 import json
 import locale
+import math
 import os
 import subprocess
 import sys
@@ -764,11 +765,16 @@ def _seg_rate_common(
 
     pct_val = _safe_float(bucket.get("used_percentage"))
     ts = _safe_float(bucket.get("resets_at"))
-    if pct_val is None or ts is None:
+    if (
+        pct_val is None
+        or ts is None
+        or not math.isfinite(pct_val)
+        or not math.isfinite(ts)
+    ):
         return None
     try:
         reset_str = fmt_reset(ts)
-    except ValueError, TypeError:
+    except ValueError, TypeError, OverflowError, OSError:
         return None
 
     color = _color_for_utilization(pct_val)
