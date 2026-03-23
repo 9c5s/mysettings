@@ -1198,7 +1198,7 @@ class TestSegRateCommon:
 
     def test_missing_used_percentage_returns_none(self) -> None:
         """used_percentageがない場合はNone"""
-        data = {"rate_limits": {"five_hour": {"resets_at": "2025-01-15T14:30:00Z"}}}
+        data = {"rate_limits": {"five_hour": {"resets_at": 1736951400.0}}}
         seg = statusline._seg_rate_common(
             data, "five_hour", "5h", "\u23f0", statusline._format_reset_time_short
         )
@@ -1231,7 +1231,7 @@ class TestSegRateCommon:
             "rate_limits": {
                 "five_hour": {
                     "used_percentage": "abc",
-                    "resets_at": "2025-01-15T14:30:00Z",
+                    "resets_at": 1736951400.0,
                 },
             },
         }
@@ -1325,6 +1325,8 @@ class TestBuildLines:
         ):
             lines = statusline._build_lines(data)
         assert len(lines) == 3
+        assert "14:30" in lines[1]
+        assert "1/20 0:00" in lines[1]
 
     def test_minimal_data_returns_project_line(self) -> None:
         """最小データでもプロジェクト行は返る"""
@@ -1386,6 +1388,8 @@ class TestBuildLines:
         assert len(lines) == 3
         assert "myproject" in lines[0]  # workspace.current_dirが優先される
         assert "Opus 4.6" in lines[1]
+        assert "14:30" in lines[1]
+        assert "1/20 0:00" in lines[1]
         assert "$0.01" in lines[2]
 
 
