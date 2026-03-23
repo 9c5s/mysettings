@@ -1389,142 +1389,6 @@ class TestBuildLines:
         assert "$0.01" in lines[2]
 
 
-class TestGetOauthToken:
-    """_get_oauth_token のテスト"""
-
-    def test_reads_from_credentials_file(self, tmp_path: Path) -> None:
-        """クレデンシャルファイルからトークンを読み取る"""
-        cred_dir = tmp_path / ".claude"
-        cred_dir.mkdir()
-        cred_file = cred_dir / ".credentials.json"
-        cred_file.write_text(
-            json.dumps({"claudeAiOauth": {"accessToken": "test-token-123"}})
-        )
-        with patch("statusline.Path.home", return_value=tmp_path):
-            result = statusline._get_oauth_token()
-        assert result == "test-token-123"
-
-    def test_no_credentials_file_returns_none(self, tmp_path: Path) -> None:
-        """クレデンシャルファイルが存在しない場合はNone(非macOS)"""
-        with (
-            patch("statusline.Path.home", return_value=tmp_path),
-            patch("statusline.platform.system", return_value="Windows"),
-        ):
-            result = statusline._get_oauth_token()
-        assert result is None
-
-    def test_invalid_json_returns_none(self, tmp_path: Path) -> None:
-        """JSONパース失敗時はNone(非macOS)"""
-        cred_dir = tmp_path / ".claude"
-        cred_dir.mkdir()
-        cred_file = cred_dir / ".credentials.json"
-        cred_file.write_text("not-json")
-        with (
-            patch("statusline.Path.home", return_value=tmp_path),
-            patch("statusline.platform.system", return_value="Windows"),
-        ):
-            result = statusline._get_oauth_token()
-        assert result is None
-
-    def test_missing_access_token_returns_none(self, tmp_path: Path) -> None:
-        """accessTokenがない場合はNone(非macOS)"""
-        cred_dir = tmp_path / ".claude"
-        cred_dir.mkdir()
-        cred_file = cred_dir / ".credentials.json"
-        cred_file.write_text(json.dumps({"claudeAiOauth": {}}))
-        with (
-            patch("statusline.Path.home", return_value=tmp_path),
-            patch("statusline.platform.system", return_value="Windows"),
-        ):
-            result = statusline._get_oauth_token()
-        assert result is None
-
-    def test_keychain_fallback_on_darwin(self, tmp_path: Path) -> None:
-        """macOSではKeychainにフォールバックする"""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = json.dumps({
-            "claudeAiOauth": {"accessToken": "keychain-token"}
-        })
-        with (
-            patch("statusline.Path.home", return_value=tmp_path),
-            patch("statusline.platform.system", return_value="Darwin"),
-            patch("statusline.subprocess.run", return_value=mock_result),
-        ):
-            result = statusline._get_oauth_token()
-        assert result == "keychain-token"
-
-
-class TestFetchUsage:
-    """_fetch_usage のテスト"""
-
-    def test_fetches_from_api(self) -> None:
-        """APIからレスポンスを取得しパースする"""
-        mock_resp = _mock_http_response(b'{"five_hour":{"utilization":30}}')
-
-        with patch("statusline.urlopen", return_value=mock_resp):
-            result = statusline._fetch_usage("test-token")
-        assert result == {"five_hour": {"utilization": 30}}
-
-    def test_sets_authorization_header(self) -> None:
-        """Authorizationヘッダーを設定する"""
-        mock_resp = _mock_http_response(b"{}")
-
-        with patch("statusline.urlopen", return_value=mock_resp) as mock_urlopen:
-            statusline._fetch_usage("my-secret-token")
-
-        req = mock_urlopen.call_args[0][0]
-        assert req.get_header("Authorization") == "Bearer my-secret-token"
-
-    def test_network_error_raises(self) -> None:
-        """ネットワークエラー時は例外を送出する"""
-        with (
-            patch("statusline.urlopen", side_effect=URLError("fail")),
-            pytest.raises(URLError, match="fail"),
-        ):
-            statusline._fetch_usage("token")
-
-
-class TestGetUsage:
-    """_get_usage のテスト"""
-
-    def test_returns_data_from_api(self, tmp_path: Path) -> None:
-        """APIからデータを取得して返す"""
-        cache_file = tmp_path / "usage-cache.json"
-        with (
-            patch.object(statusline, "_CACHE_PATH", cache_file),
-            patch("statusline._get_oauth_token", return_value="test-token"),
-            patch(
-                "statusline._fetch_usage",
-                return_value={"five_hour": {"utilization": 30}},
-            ),
-        ):
-            result = statusline._get_usage()
-        assert result == {"five_hour": {"utilization": 30}}
-
-    def test_returns_none_when_no_token(self, tmp_path: Path) -> None:
-        """トークン取得失敗時はNone"""
-        cache_file = tmp_path / "nonexistent.json"
-        with (
-            patch.object(statusline, "_CACHE_PATH", cache_file),
-            patch("statusline._get_oauth_token", return_value=None),
-        ):
-            result = statusline._get_usage()
-        assert result is None
-
-    def test_returns_cached_data(self, tmp_path: Path) -> None:
-        """有効なキャッシュがあればAPIを呼ばず返す"""
-        cache_file = tmp_path / "usage-cache.json"
-        cache_data = {
-            "_cached_at": time.time(),
-            "data": {"five_hour": {"utilization": 25}},
-        }
-        cache_file.write_text(json.dumps(cache_data))
-        with patch.object(statusline, "_CACHE_PATH", cache_file):
-            result = statusline._get_usage()
-        assert result == {"five_hour": {"utilization": 25}}
-
-
 class TestFetchGitInfo:
     """_fetch_git_info のテスト"""
 
@@ -1910,7 +1774,6 @@ class TestMain:
             patch("sys.stdin") as mock_stdin,
             patch("sys.argv", ["statusline.py"]),
             patch.object(statusline, "_get_git_info", return_value={"branch": "main"}),
-            patch.object(statusline, "_get_usage", return_value=None),
             patch.object(statusline, "_resolve_currency", return_value="USD"),
             patch.object(statusline, "_get_session_cost", return_value=0.5),
             patch.object(statusline, "_get_daily_cost", return_value=1.0),
@@ -1927,7 +1790,6 @@ class TestMain:
             patch("sys.stdin") as mock_stdin,
             patch("sys.argv", ["statusline.py", "--icons", "nerd"]),
             patch.object(statusline, "_get_git_info", return_value=None),
-            patch.object(statusline, "_get_usage", return_value=None),
             patch.object(statusline, "_resolve_currency", return_value="USD"),
             patch.object(statusline, "_get_session_cost", return_value=None),
             patch.object(statusline, "_get_daily_cost", return_value=None),
