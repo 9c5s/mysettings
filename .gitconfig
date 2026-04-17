@@ -1,5 +1,5 @@
 [user]
-	name = 9c5s
+	name = xin
 	email = 98406118+9c5s@users.noreply.github.com
 	signingkey = ~/.ssh/id_ed25519.pub
 [core]
@@ -21,3 +21,11 @@
 	rebase = true
 [coderabbit]
 	machineId = cli/9f56e88424404ceca69ee41fc2515ba8
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+[credential]
+	helper = 
+	helper = C:/Users/shun/AppData/Local/Programs/Git\\ Credential\\ Manager/git-credential-manager.exe
