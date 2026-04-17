@@ -18,7 +18,7 @@
    - スレッドを解決済みにする
 6. **完了確認**: 全スレッドが以下の両方を満たすことを検証する
    - `isResolved == true` (解決済み)
-   - 最後のコメントが自分のアカウント (返信済み)
+   - 自分のアカウントの返信が含まれる (botが自動返信するため最終コメントでは判定不可)
    - 未達のスレッドがあれば手順5に戻る
 
 ## 使用するコマンド
@@ -44,9 +44,10 @@ gh api graphql -f query='mutation { resolveReviewThread(input: { threadId: "{thr
 ### 完了確認
 
 ```
-gh api graphql -f query='query { repository(owner: "{owner}", name: "{repo}") { pullRequest(number: {N}) { reviewThreads(first: 50) { nodes { id isResolved comments(last: 1) { nodes { author { login } } } } } } } }'
+gh api graphql -f query='query { repository(owner: "{owner}", name: "{repo}") { pullRequest(number: {N}) { reviewThreads(first: 50) { nodes { id isResolved comments(first: 10) { nodes { author { login } } } } } } } }' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | {id: .id, resolved: .isResolved, hasMyReply: ([.comments.nodes[].author.login] | any(. == "{my_login}"))}'
 ```
 
-各スレッドで `isResolved == true` かつ最終コメントが自分のアカウントであることを確認する。
+各スレッドで `resolved == true` かつ `hasMyReply == true` であることを確認する。
+botが自動返信するため `comments(last: 1)` ではなく全コメントから自分のアカウントを検索する。
 
 注意: `minimizeComment`はコメントの非表示であり、スレッドの解決ではない
