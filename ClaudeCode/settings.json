@@ -4,8 +4,7 @@
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_NO_FLICKER": "1",
     "DISABLE_AUTOUPDATER": "0",
-    "DISABLE_ERROR_REPORTING": "1",
-    "DISABLE_TELEMETRY": "1"
+    "DISABLE_ERROR_REPORTING": "1"
   },
   "includeCoAuthoredBy": false,
   "permissions": {
@@ -78,7 +77,9 @@
     "superpowers@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": false,
     "typescript-lsp@claude-plugins-official": false,
-    "codex@openai-codex": true
+    "codex@openai-codex": true,
+    "svelte@svelte": true,
+    "discord@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "openai-codex": {
@@ -86,12 +87,18 @@
         "source": "github",
         "repo": "openai/codex-plugin-cc"
       }
+    },
+    "svelte": {
+      "source": {
+        "source": "github",
+        "repo": "sveltejs/ai-tools"
+      }
     }
   },
   "language": "日本語",
-  "effortLevel": "medium",
   "autoUpdatesChannel": "latest",
   "skipDangerousModePermissionPrompt": true,
+  "preferredNotifChannel": "notifications_disabled",
   "feedbackSurveyState": {
     "lastShownTime": 1754086803253
   }
