@@ -19,8 +19,9 @@
 			"Bash(*git add -f*)",
 			"Bash(*rm -rf *)"
 		],
-		"defaultMode": "plan"
+		"defaultMode": "auto"
 	},
+	"model": "claude-fable-5[1m]",
 	"hooks": {
 		"Notification": [
 			{
@@ -42,16 +43,6 @@
 				]
 			}
 		],
-		"PreToolUse": [
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun ~/.claude/hooks/pretooluse.ts"
-					}
-				]
-			}
-		],
 		"SessionStart": [
 			{
 				"hooks": [
@@ -61,11 +52,21 @@
 					}
 				]
 			}
+		],
+		"SessionEnd": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun ~/.claude/hooks/watch-stop.ts"
+					}
+				]
+			}
 		]
 	},
 	"statusLine": {
 		"type": "command",
-		"command": "uv run ~/.claude/scripts/statusline.py --icons=nerd",
+		"command": "bun D:/projects/cc-discord/plugin/src/statusline-tee.ts uv run ~/.claude/scripts/statusline.py --icons=nerd",
 		"padding": 0
 	},
 	"enabledPlugins": {
@@ -76,7 +77,6 @@
 		"code-simplifier@claude-plugins-official": true,
 		"coderabbit@claude-plugins-official": true,
 		"codex@openai-codex": true,
-		"context7@claude-plugins-official": true,
 		"csharp-lsp@claude-plugins-official": false,
 		"discord@claude-plugins-official": true,
 		"feature-dev@claude-plugins-official": true,
@@ -85,7 +85,6 @@
 		"jdtls-lsp@claude-plugins-official": false,
 		"kotlin-lsp@claude-plugins-official": false,
 		"lua-lsp@claude-plugins-official": false,
-		"microsoft-docs@claude-plugins-official": true,
 		"php-lsp@claude-plugins-official": false,
 		"playwright-cli@playwright-cli": true,
 		"playwright@claude-plugins-official": true,
@@ -97,7 +96,6 @@
 		"security-guidance@claude-plugins-official": true,
 		"skill-creator@claude-plugins-official": true,
 		"superpowers@claude-plugins-official": true,
-		"svelte@svelte": true,
 		"swift-lsp@claude-plugins-official": false,
 		"typescript-lsp@claude-plugins-official": false
 	},
@@ -116,9 +114,15 @@
 		}
 	},
 	"language": "日本語",
+	"effortLevel": "xhigh",
+	"promptSuggestionEnabled": false,
 	"autoUpdatesChannel": "latest",
 	"skipDangerousModePermissionPrompt": true,
+	"theme": "dark",
 	"preferredNotifChannel": "notifications_disabled",
+	"remoteControlAtStartup": true,
+	"inputNeededNotifEnabled": true,
+	"agentPushNotifEnabled": true,
 	"feedbackSurveyState": {
 		"lastShownTime": 1754086803253
 	}
