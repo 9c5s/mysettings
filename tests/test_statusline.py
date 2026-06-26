@@ -5,6 +5,7 @@
 
 import json
 import sys
+import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -896,32 +897,34 @@ class TestRenderLine:
 class TestSegProject:
     """_seg_project のテスト"""
 
+    @staticmethod
+    def _abs_cwd(name: str = "myproject") -> str:
+        """テスト用のクロスプラットフォーム絶対パスを返す"""
+        return str(Path(tempfile.gettempdir()) / name)
+
     def test_displays_project_name(self) -> None:
         """cwdからプロジェクト名を表示する"""
-        data = {"cwd": "/home/user/myproject"}
+        data = {"cwd": self._abs_cwd()}
         seg = statusline._seg_project(data)
         assert seg is not None
         assert "myproject" in seg.text
 
-    def test_with_remote_url_creates_link(self) -> None:
-        """リモートURLがある場合はOSC 8リンクを含む"""
-        data = {
-            "cwd": "/home/user/myproject",
-            "_git": {"remote_url": "git@github.com:user/myproject.git"},
-        }
+    def test_absolute_cwd_creates_file_uri_link(self) -> None:
+        """絶対パスのcwdの場合は file:/// 形式のOSC 8リンクを含む"""
+        data = {"cwd": self._abs_cwd()}
         seg = statusline._seg_project(data)
         assert seg is not None
         assert "myproject" in seg.text
-        # OSC 8リンクのエスケープシーケンスを含む
-        assert "\033]8;;" in seg.text
+        # file:/// 形式のOSC 8リンクを含む
+        assert "\033]8;;file://" in seg.text
 
-    def test_without_git_info(self) -> None:
-        """git情報がなくてもセグメントは返る"""
-        data = {"cwd": "/home/user/myproject"}
+    def test_relative_cwd_no_link(self) -> None:
+        """相対パスのcwdの場合はOSC 8リンクなし"""
+        # Path.as_uri() は相対パスでValueErrorを投げるためリンクは生成されない
+        data = {"cwd": "relative/path/myproject"}
         seg = statusline._seg_project(data)
         assert seg is not None
         assert "myproject" in seg.text
-        # OSC 8リンクは含まない
         assert "\033]8;;" not in seg.text
 
     def test_empty_cwd_shows_unknown(self) -> None:
@@ -931,13 +934,14 @@ class TestSegProject:
         assert seg is not None
         assert "unknown" in seg.text
 
-    def test_git_info_without_remote_url_no_link(self) -> None:
-        """git情報はあるがremote_urlがない場合はリンクなし"""
-        data = {"cwd": "/home/user/myproject", "_git": {"branch": "main"}}
+    def test_no_longer_depends_on_git_remote(self) -> None:
+        """_git の remote_url が無くてもリンクが生成される(絶対パスの場合)"""
+        data = {"cwd": self._abs_cwd(), "_git": {"branch": "main"}}
         seg = statusline._seg_project(data)
         assert seg is not None
         assert "myproject" in seg.text
-        assert "\033]8;;" not in seg.text
+        # _git を見なくなったので、絶対パスならリンクが付く
+        assert "\033]8;;file://" in seg.text
 
 
 class TestSegBranch:
@@ -1058,6 +1062,38 @@ class TestSegModel:
         seg = statusline._seg_model(data)
         assert seg is not None
         assert "CustomModel" in seg.text
+
+    def test_effort_level_appended_at_end(self) -> None:
+        """effort.level は base+version+(context) の末尾に併記される"""
+        data = {
+            "model": {"display_name": "Opus (1M context)", "id": "claude-opus-4-7"},
+            "effort": {"level": "high"},
+        }
+        seg = statusline._seg_model(data)
+        assert seg is not None
+        # 語順: base version (context) effort
+        assert "Opus 4.7 (1M) high" in seg.text
+
+    def test_no_effort_no_level_text(self) -> None:
+        """Effort キーがない場合は effort 表記が付かない"""
+        data = {"model": {"display_name": "Sonnet", "id": "claude-sonnet-4-6"}}
+        seg = statusline._seg_model(data)
+        assert seg is not None
+        assert "Sonnet 4.6" in seg.text
+        # effort 系の語が混入しない
+        for level in ("low", "medium", "high", "xhigh", "max"):
+            assert level not in seg.text
+
+    def test_effort_not_dict_ignored(self) -> None:
+        """Effort が dict でない場合は無視する"""
+        data = {
+            "model": {"display_name": "Opus", "id": "claude-opus-4-7"},
+            "effort": "high",
+        }
+        seg = statusline._seg_model(data)
+        assert seg is not None
+        assert "Opus 4.7" in seg.text
+        assert "high" not in seg.text
 
 
 class TestSegContext:
