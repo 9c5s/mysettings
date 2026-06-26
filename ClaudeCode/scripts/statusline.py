@@ -502,7 +502,8 @@ def _fetch_git_info(cwd: str) -> dict[str, Any]:
         branch = result.stdout.strip()
 
     if not branch:
-        raise RuntimeError
+        msg = "git branch not detected"
+        raise RuntimeError(msg)
 
     info["branch"] = branch
 
