@@ -60,6 +60,15 @@ class _CostInput(TypedDict, total=False):
     total_lines_removed: int
 
 
+class _CurrentUsageInput(TypedDict, total=False):
+    """context_window.current_usage の内訳"""
+
+    input_tokens: int
+    output_tokens: int
+    cache_creation_input_tokens: int
+    cache_read_input_tokens: int
+
+
 class _ContextWindowInput(TypedDict, total=False):
     """Claude Code statusline JSON の context_window フィールド"""
 
@@ -68,6 +77,7 @@ class _ContextWindowInput(TypedDict, total=False):
     context_window_size: int
     used_percentage: float
     remaining_percentage: float
+    current_usage: _CurrentUsageInput
 
 
 class _EffortInput(TypedDict, total=False):
@@ -90,6 +100,34 @@ class _RateLimitsInput(TypedDict, total=False):
     seven_day: _RateBucketInput
 
 
+class _OutputStyleInput(TypedDict, total=False):
+    """Claude Code statusline JSON の output_style フィールド"""
+
+    name: str
+
+
+class _VimInput(TypedDict, total=False):
+    """Claude Code statusline JSON の vim フィールド"""
+
+    mode: str
+
+
+class _AgentInput(TypedDict, total=False):
+    """Claude Code statusline JSON の agent フィールド"""
+
+    name: str
+
+
+class _WorktreeInput(TypedDict, total=False):
+    """Claude Code statusline JSON の worktree フィールド"""
+
+    name: str
+    path: str
+    branch: str
+    original_cwd: str
+    original_branch: str
+
+
 class _StatuslineInput(TypedDict, total=False):  # noqa: PYI049
     """Claude Code statusline フックから stdin で渡される JSON の構造
 
@@ -105,8 +143,13 @@ class _StatuslineInput(TypedDict, total=False):  # noqa: PYI049
     version: str
     cost: _CostInput
     context_window: _ContextWindowInput
+    exceeds_200k_tokens: bool
     effort: _EffortInput
     rate_limits: _RateLimitsInput
+    output_style: _OutputStyleInput
+    vim: _VimInput
+    agent: _AgentInput
+    worktree: _WorktreeInput
 
 
 class _Color(IntEnum):
@@ -708,12 +751,13 @@ def _seg_project(data: dict[str, Any]) -> Segment | None:
     name = Path(cwd).name or "unknown"
 
     # cwd を file:/// URL に変換する
+    # resolve() で相対パスも絶対化してから as_uri() を呼ぶ
     # 失敗時は stderr に診断情報を出力する(stdout は statusline 表示に使われる)
     cwd_url: str | None = None
     if cwd:
         try:
-            cwd_url = Path(cwd).as_uri()
-        except ValueError as e:
+            cwd_url = Path(cwd).resolve().as_uri()
+        except (OSError, ValueError) as e:
             sys.stderr.write(
                 f"statusline: cannot build file URI from cwd={cwd!r}: {e}\n"
             )
