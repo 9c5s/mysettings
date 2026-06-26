@@ -918,14 +918,14 @@ class TestSegProject:
         # file:/// 形式のOSC 8リンクを含む
         assert "\033]8;;file://" in seg.text
 
-    def test_relative_cwd_no_link(self) -> None:
-        """相対パスのcwdの場合はOSC 8リンクなし"""
-        # Path.as_uri() は相対パスでValueErrorを投げるためリンクは生成されない
+    def test_relative_cwd_resolved_to_file_uri(self) -> None:
+        """相対パスのcwdはresolve()で絶対化されてOSC 8リンクが生成される"""
+        # Path.resolve()で実行時cwd基準に絶対化されるため、file:///リンクが付く
         data = {"cwd": "relative/path/myproject"}
         seg = statusline._seg_project(data)
         assert seg is not None
         assert "myproject" in seg.text
-        assert "\033]8;;" not in seg.text
+        assert "\033]8;;file://" in seg.text
 
     def test_empty_cwd_shows_unknown(self) -> None:
         """cwdが空の場合は"unknown"を表示する"""
@@ -943,15 +943,16 @@ class TestSegProject:
         # _git を見なくなったので、絶対パスならリンクが付く
         assert "\033]8;;file://" in seg.text
 
-    def test_invalid_cwd_writes_stderr_diagnostic(
+    def test_resolve_failure_writes_stderr_diagnostic(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """as_uri 失敗時は stderr に診断情報を出力する"""
-        data = {"cwd": "relative/path/myproject"}
-        statusline._seg_project(data)
+        """as_uri が例外で失敗した場合は stderr に診断情報を出力する"""
+        data = {"cwd": self._abs_cwd()}
+        with patch.object(Path, "as_uri", side_effect=ValueError("uri build error")):
+            statusline._seg_project(data)
         err = capsys.readouterr().err
         assert "statusline:" in err
-        assert "relative/path/myproject" in err
+        assert "uri build error" in err
 
     def test_absolute_cwd_no_stderr_output(
         self, capsys: pytest.CaptureFixture[str]
