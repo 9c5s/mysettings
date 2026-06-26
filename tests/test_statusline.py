@@ -1284,6 +1284,23 @@ class TestSegRateCommon:
         )
         assert seg is None
 
+    def test_fmt_reset_overflow_returns_none(self) -> None:
+        """fmt_resetがOverflowErrorを送出した場合はNoneを返す"""
+        data = {
+            "rate_limits": {
+                "five_hour": {
+                    "used_percentage": 30.0,
+                    "resets_at": 1.0,
+                },
+            },
+        }
+
+        def failing_fmt(_ts: float) -> str:
+            raise OverflowError
+
+        seg = statusline._seg_rate_common(data, "five_hour", "5h", "X", failing_fmt)
+        assert seg is None
+
 
 class TestSegRate5hAnd7d:
     """_seg_rate_5h / _seg_rate_7d の統合テスト"""
@@ -1466,11 +1483,11 @@ class TestFetchGitInfo:
         assert result["branch"] == "abc1234"
 
     def test_no_branch_raises_runtime_error(self) -> None:
-        """ブランチ取得失敗時はRuntimeErrorを送出する"""
+        """ブランチ取得失敗時はメッセージ付きのRuntimeErrorを送出する"""
         mock_result = MagicMock(returncode=1, stdout="")
         with (
             patch("statusline.subprocess.run", return_value=mock_result),
-            pytest.raises(RuntimeError),
+            pytest.raises(RuntimeError, match="git branch not detected"),
         ):
             statusline._fetch_git_info("/some/path")
 
@@ -1542,6 +1559,14 @@ class TestGetGitInfo:
 class TestGetDailyCost:
     """_get_daily_cost のテスト"""
 
+    _FIXED_TODAY = "2026-06-26"
+
+    @pytest.fixture(autouse=True)
+    def _fixed_today(self) -> Iterator[None]:
+        """statusline._today を固定日付に patch する"""
+        with patch("statusline._today", return_value=self._FIXED_TODAY):
+            yield
+
     def _make_data(
         self, total_cost_usd: float, session_id: str = "sess-a"
     ) -> dict[str, Any]:
@@ -1550,9 +1575,6 @@ class TestGetDailyCost:
             "cost": {"total_cost_usd": total_cost_usd},
             "session_id": session_id,
         }
-
-    def _today(self) -> str:
-        return datetime.now().astimezone().strftime("%Y-%m-%d")
 
     def test_first_call_returns_zero(self, tmp_path: Path) -> None:
         """初回呼び出しでセッションを記録し0.0を返す"""
@@ -1571,7 +1593,7 @@ class TestGetDailyCost:
         cache_file = tmp_path / "daily-cost.json"
         cache_file.write_text(
             json.dumps({
-                "date": self._today(),
+                "date": self._FIXED_TODAY,
                 "sessions": {"sess-a": 2.0},
                 "accumulated": 3.0,
             })
@@ -1589,7 +1611,7 @@ class TestGetDailyCost:
         cache_file = tmp_path / "daily-cost.json"
         cache_file.write_text(
             json.dumps({
-                "date": self._today(),
+                "date": self._FIXED_TODAY,
                 "sessions": {"sess-a": 10.0},
                 "accumulated": 15.0,
             })
@@ -1620,7 +1642,7 @@ class TestGetDailyCost:
 
         assert result == 0.0
         cache_obj = json.loads(cache_file.read_text())
-        assert cache_obj["date"] == self._today()
+        assert cache_obj["date"] == self._FIXED_TODAY
         assert "old-sess" not in cache_obj["sessions"]
 
     def test_returns_none_without_cost_data(self) -> None:
@@ -1631,6 +1653,17 @@ class TestGetDailyCost:
     def test_returns_none_without_total_cost_usd(self) -> None:
         """total_cost_usdがない場合はNoneを返す"""
         result = statusline._get_daily_cost({"cost": {}})
+        assert result is None
+
+    def test_non_numeric_total_cost_returns_none(self, tmp_path: Path) -> None:
+        """total_cost_usdが数値変換できない場合はNoneを返す"""
+        cache_file = tmp_path / "daily-cost.json"
+        with patch.object(statusline, "_DAILY_COST_CACHE_PATH", cache_file):
+            data: dict[str, Any] = {
+                "cost": {"total_cost_usd": "abc"},
+                "session_id": "s1",
+            }
+            result = statusline._get_daily_cost(data)
         assert result is None
 
     def test_handles_corrupt_cache(self, tmp_path: Path) -> None:
