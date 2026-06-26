@@ -623,22 +623,23 @@ def _get_daily_cost(data: dict[str, Any]) -> float | None:
 def _seg_project(data: dict[str, Any]) -> Segment | None:
     """プロジェクト名セグメントを生成する
 
-    GitリモートURLが取得できる場合はOSC 8クリッカブルリンクにする
+    cwdを file:/// URLに変換してOSC 8クリッカブルリンクにする
+    表示テキストはbasenameのみとし、リンク先のみカレントディレクトリを指す
     """
     cwd = _get_cwd(data)
     name = Path(cwd).name or "unknown"
 
-    # リモートURLからHTTPSリンクを生成する
-    git_info = data.get("_git")
-    repo_url = None
-    if isinstance(git_info, dict):
-        remote_url = git_info.get("remote_url", "")
-        if remote_url:
-            repo_url = _remote_to_https(remote_url)
+    # cwd を file:/// URL に変換する
+    cwd_url: str | None = None
+    if cwd:
+        try:
+            cwd_url = Path(cwd).as_uri()
+        except ValueError:
+            cwd_url = None
 
     display = f"{_icons.FOLDER} {name}"
-    if repo_url:
-        display = f"{_icons.FOLDER} {_osc8_link(repo_url, name)}"
+    if cwd_url:
+        display = f"{_icons.FOLDER} {_osc8_link(cwd_url, name)}"
 
     label = _colorize(display, _Color.BLUE)
     return Segment(text=label)
@@ -676,8 +677,10 @@ def _seg_branch(data: dict[str, Any]) -> Segment | None:
 def _seg_model(data: dict[str, Any]) -> Segment | None:
     """モデル名セグメントを生成する
 
-    model.display_nameとmodel.idからバージョンを抽出する
-    例: id="claude-opus-4-6", display_name="Opus" -> "Opus 4.6"
+    display_nameを base_name と括弧部分に分離し、
+    "base_name version (context) effort" の順で組み立てる
+    例: display_name="Opus (1M context)", id="claude-opus-4-7", effort="high"
+    -> "Opus 4.7 (1M) high"
     """
     model = data.get("model")
     if not isinstance(model, dict):
@@ -689,17 +692,34 @@ def _seg_model(data: dict[str, Any]) -> Segment | None:
     if not display_name:
         return None
 
+    # display_name から括弧部分を分離する
+    # 例: "Opus (1M context)" -> base="Opus", paren="(1M)"
+    base_name = display_name
+    paren_text = ""
+    paren_idx = display_name.find("(")
+    if paren_idx >= 0:
+        base_name = display_name[:paren_idx].rstrip()
+        paren_text = display_name[paren_idx:].replace(" context)", ")")
+
     # model_idからバージョン番号を抽出する
-    # 例: "claude-opus-4-6" -> "4.6", "claude-sonnet-4-5-20250514" -> "4.5"
+    # 例: "claude-opus-4-6" -> "4.6"
     version = _extract_version(model_id)
-    if version and version not in display_name:
-        model_text = f"{display_name} {version}"
-    else:
-        model_text = display_name
 
-    # "Opus 4.6 (1M context)" -> "Opus 4.6 (1M)" のように短縮する
-    model_text = model_text.replace(" context)", ")")
+    parts: list[str] = [base_name]
+    if version and version not in base_name:
+        parts.append(version)
+    if paren_text:
+        parts.append(paren_text)
 
+    # effort.levelがあれば末尾に併記する
+    # 例: "low", "medium", "high", "xhigh", "max"
+    effort = data.get("effort")
+    if isinstance(effort, dict):
+        level = effort.get("level")
+        if level:
+            parts.append(str(level))
+
+    model_text = " ".join(parts)
     label = f"{_icons.MODEL} {model_text}"
     return Segment(text=label)
 
