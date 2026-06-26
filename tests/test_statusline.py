@@ -943,6 +943,24 @@ class TestSegProject:
         # _git を見なくなったので、絶対パスならリンクが付く
         assert "\033]8;;file://" in seg.text
 
+    def test_invalid_cwd_writes_stderr_diagnostic(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """as_uri 失敗時は stderr に診断情報を出力する"""
+        data = {"cwd": "relative/path/myproject"}
+        statusline._seg_project(data)
+        err = capsys.readouterr().err
+        assert "statusline:" in err
+        assert "relative/path/myproject" in err
+
+    def test_absolute_cwd_no_stderr_output(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """成功時は stderr に何も出力しない"""
+        data = {"cwd": self._abs_cwd()}
+        statusline._seg_project(data)
+        assert capsys.readouterr().err == ""
+
 
 class TestSegBranch:
     """_seg_branch のテスト"""
@@ -1094,6 +1112,31 @@ class TestSegModel:
         assert seg is not None
         assert "Opus 4.7" in seg.text
         assert "high" not in seg.text
+
+    def test_paren_context_replaced_only_at_end(self) -> None:
+        """括弧内に複数の'context'が出現しても末尾の' context)'のみ短縮する"""
+        data = {
+            "model": {
+                "display_name": "Opus (1M context context)",
+                "id": "claude-opus-4-7",
+            },
+        }
+        seg = statusline._seg_model(data)
+        assert seg is not None
+        # 末尾のみ短縮されるため、内部の "context" は残る
+        assert "Opus 4.7 (1M context)" in seg.text
+
+    def test_paren_without_context_unchanged(self) -> None:
+        """括弧内に' context)'がない場合は括弧をそのまま保持する"""
+        data = {
+            "model": {
+                "display_name": "Opus (preview)",
+                "id": "claude-opus-4-7",
+            },
+        }
+        seg = statusline._seg_model(data)
+        assert seg is not None
+        assert "Opus 4.7 (preview)" in seg.text
 
 
 class TestSegContext:
