@@ -13,6 +13,8 @@ Claude Codeのステータスフックから呼び出され、ターミナル下
 # pyright: reportUnknownMemberType=false
 # pyright: reportUnknownArgumentType=false
 # pyright: reportUnknownVariableType=false
+# 入力 JSON 構造の documentation 用 TypedDict 群は実行時に参照しないため抑制する
+# pyright: reportUnusedClass=false
 
 import argparse
 import contextlib
@@ -28,8 +30,83 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import IntEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 from urllib.request import Request, urlopen
+
+
+class _ModelInput(TypedDict, total=False):
+    """Claude Code statusline JSON の model フィールド"""
+
+    id: str
+    display_name: str
+
+
+class _WorkspaceInput(TypedDict, total=False):
+    """Claude Code statusline JSON の workspace フィールド"""
+
+    current_dir: str
+    project_dir: str
+    added_dirs: list[str]
+    git_worktree: str
+
+
+class _CostInput(TypedDict, total=False):
+    """Claude Code statusline JSON の cost フィールド"""
+
+    total_cost_usd: float
+    total_duration_ms: int
+    total_api_duration_ms: int
+    total_lines_added: int
+    total_lines_removed: int
+
+
+class _ContextWindowInput(TypedDict, total=False):
+    """Claude Code statusline JSON の context_window フィールド"""
+
+    total_input_tokens: int
+    total_output_tokens: int
+    context_window_size: int
+    used_percentage: float
+    remaining_percentage: float
+
+
+class _EffortInput(TypedDict, total=False):
+    """Claude Code statusline JSON の effort フィールド"""
+
+    level: str
+
+
+class _RateBucketInput(TypedDict, total=False):
+    """rate_limits.five_hour / seven_day のバケット構造"""
+
+    used_percentage: float
+    resets_at: float
+
+
+class _RateLimitsInput(TypedDict, total=False):
+    """Claude Code statusline JSON の rate_limits フィールド"""
+
+    five_hour: _RateBucketInput
+    seven_day: _RateBucketInput
+
+
+class _StatuslineInput(TypedDict, total=False):  # noqa: PYI049
+    """Claude Code statusline フックから stdin で渡される JSON の構造
+
+    公式ドキュメント: https://code.claude.com/docs/en/statusline
+    実行時の型保証は無いため、各 _seg_* 関数では isinstance による防御を維持する
+    """
+
+    cwd: str
+    session_id: str
+    transcript_path: str
+    model: _ModelInput
+    workspace: _WorkspaceInput
+    version: str
+    cost: _CostInput
+    context_window: _ContextWindowInput
+    effort: _EffortInput
+    rate_limits: _RateLimitsInput
 
 
 class _Color(IntEnum):
@@ -631,11 +708,15 @@ def _seg_project(data: dict[str, Any]) -> Segment | None:
     name = Path(cwd).name or "unknown"
 
     # cwd を file:/// URL に変換する
+    # 失敗時は stderr に診断情報を出力する(stdout は statusline 表示に使われる)
     cwd_url: str | None = None
     if cwd:
         try:
             cwd_url = Path(cwd).as_uri()
-        except ValueError:
+        except ValueError as e:
+            sys.stderr.write(
+                f"statusline: cannot build file URI from cwd={cwd!r}: {e}\n"
+            )
             cwd_url = None
 
     display = f"{_icons.FOLDER} {name}"
@@ -700,7 +781,12 @@ def _seg_model(data: dict[str, Any]) -> Segment | None:
     paren_idx = display_name.find("(")
     if paren_idx >= 0:
         base_name = display_name[:paren_idx].rstrip()
-        paren_text = display_name[paren_idx:].replace(" context)", ")")
+        paren_text = display_name[paren_idx:]
+        # 末尾の " context)" のみを ")" に短縮する
+        # (内部に出現する "context" の文字列を意図せず置換しないため)
+        context_suffix = " context)"
+        if paren_text.endswith(context_suffix):
+            paren_text = paren_text[: -len(context_suffix)] + ")"
 
     # model_idからバージョン番号を抽出する
     # 例: "claude-opus-4-6" -> "4.6"
