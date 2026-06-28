@@ -18,7 +18,16 @@
 			"Bash(*gh repo delete*)",
 			"Bash(*git config *)",
 			"Bash(*git add -f*)",
-			"Bash(*rm -rf *)"
+			"Bash(*rm -rf *)",
+			"PowerShell(*brew install *)",
+			"PowerShell(*gh pr merge*)",
+			"PowerShell(*gh merge*)",
+			"PowerShell(*gh repo delete*)",
+			"PowerShell(*git config *)",
+			"PowerShell(*git add -f*)",
+			"PowerShell(*rm -rf *)",
+			"PowerShell(*Remove-Item*-Recurse*)",
+			"PowerShell(*Remove-Item*-Force*)"
 		],
 		"defaultMode": "plan"
 	},
