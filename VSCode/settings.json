@@ -112,6 +112,7 @@
 	"diffEditor.maxComputationTime": 0,
 	"diffEditor.renderSideBySide": false,
 	"docker.extension.dockerEngineAvailabilityPrompt": false,
+	"docker.extension.enableComposeLanguageServer": false,
 	"editor.accessibilitySupport": "off",
 	"editor.codeActionsOnSave": {
 		"source.fixAll.eslint": "explicit",
@@ -155,9 +156,7 @@
 					}
 				},
 				{
-					"scope": [
-						"comment.block.documentation entity.name.type.instance"
-					],
+					"scope": ["comment.block.documentation entity.name.type.instance"],
 					"settings": {
 						"foreground": "#73daca"
 					}
@@ -171,9 +170,7 @@
 					}
 				},
 				{
-					"scope": [
-						"comment.block.documentation variable"
-					],
+					"scope": ["comment.block.documentation variable"],
 					"settings": {
 						"foreground": "#e0af68"
 					}
@@ -197,10 +194,7 @@
 	"git-graph.date.format": "ISO Date & Time",
 	"git.autofetch": true,
 	"git.blame.editorDecoration.enabled": true,
-	"git.branchProtection": [
-		"main",
-		"master"
-	],
+	"git.branchProtection": ["main", "master"],
 	"git.confirmSync": false,
 	"git.defaultCloneDirectory": "D:\\projects\\",
 	"git.diagnosticsCommitHook.enabled": true,
@@ -238,10 +232,7 @@
 		"rgba(255,127,255,0.3)",
 		"rgba(79,236,236,0.3)"
 	],
-	"indentRainbow.ignoreErrorLanguages": [
-		"clojure",
-		"markdown"
-	],
+	"indentRainbow.ignoreErrorLanguages": ["clojure", "markdown"],
 	"indentRainbow.indicatorStyle": "light",
 	"json.schemaDownload.trustedDomains": {
 		"https://biomejs.dev": true,
@@ -255,9 +246,7 @@
 	"Lua.codeLens.enable": true,
 	"Lua.completion.enable": true,
 	"Lua.hint.enable": true,
-	"Lua.workspace.library": [
-		"D:\\projects\\REFrameworkLuaTypedef\\dist\\"
-	],
+	"Lua.workspace.library": ["D:\\projects\\REFrameworkLuaTypedef\\dist\\"],
 	"prettier.bracketSameLine": true,
 	"prettier.endOfLine": "auto",
 	"prettier.printWidth": 120,
@@ -293,13 +282,9 @@
 	"ruff.configuration": "",
 	"ruff.configurationPreference": "filesystemFirst",
 	"ruff.format.preview": false,
-	"ruff.lint.extendSelect": [
-		"ALL"
-	],
+	"ruff.lint.extendSelect": ["ALL"],
 	"ruff.lint.ignore": [],
-	"ruff.lint.select": [
-		"ALL"
-	],
+	"ruff.lint.select": ["ALL"],
 	"ruff.nativeServer": "on",
 	"runOnSave.commands": [],
 	"search.useGlobalIgnoreFiles": true,
@@ -346,9 +331,7 @@
 	"workbench.colorTheme": "Tokyo Night",
 	"workbench.editorAssociations": {},
 	"workbench.iconTheme": "material-icon-theme",
-	"workbench.settings.applyToAllProfiles": [
-		"editor.formatOnSave"
-	],
+	"workbench.settings.applyToAllProfiles": ["editor.formatOnSave"],
 	"workbench.startupEditor": "none",
 	"workbench.statusBar.visible": true
 }
