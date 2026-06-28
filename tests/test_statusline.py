@@ -1626,6 +1626,30 @@ class TestGetGitInfo:
         assert result == {"branch": "new-branch"}
 
 
+class TestFileLock:
+    """_file_lock のテスト"""
+
+    def test_acquire_and_release(self, tmp_path: Path) -> None:
+        """ロックを取得しスコープ離脱で解放する"""
+        cache_path = tmp_path / "cache.json"
+        lock_path = tmp_path / "cache.json.lock"
+        with statusline._file_lock(cache_path):
+            assert lock_path.exists()
+        assert not lock_path.exists()
+
+    def test_existing_lock_times_out(self, tmp_path: Path) -> None:
+        """既存ロックがあるとタイムアウトして処理を継続する(可用性優先)"""
+        cache_path = tmp_path / "cache.json"
+        lock_path = tmp_path / "cache.json.lock"
+        # 事前にロックファイルを作成しておく
+        lock_path.touch()
+        # タイムアウトしても例外は発生せず、処理を続行する
+        with statusline._file_lock(cache_path, timeout_s=0.05):
+            pass
+        # 自プロセスが取得していないので既存ロックは解放しない
+        assert lock_path.exists()
+
+
 class TestGetDailyCost:
     """_get_daily_cost のテスト"""
 

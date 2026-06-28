@@ -16,6 +16,8 @@ Claude Codeのステータスフックから呼び出され、ターミナル下
 # 入力 JSON 構造の documentation 用 TypedDict 群は実行時に参照しないため抑制する
 # pyright: reportUnusedClass=false
 
+from __future__ import annotations
+
 import argparse
 import contextlib
 import json
@@ -25,13 +27,17 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 from urllib.request import Request, urlopen
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 class _ModelInput(TypedDict, total=False):
@@ -439,6 +445,33 @@ def _write_cache(cache_path: Path, cache_obj: dict[str, Any]) -> None:
                 Path(tmp_name).unlink()
 
 
+@contextlib.contextmanager
+def _file_lock(cache_path: Path, timeout_s: float = 1.0) -> Generator[None]:
+    """ファイルキャッシュ更新の排他ロックを取得するcontext manager
+
+    `<cache_path>.lock` を O_CREAT | O_EXCL で作成して排他制御を行う
+    タイムアウト時はロック取得を諦めて処理を続行する(可用性を優先)
+    複数 statusline プロセスがキャッシュをread-modify-writeする際の競合を直列化する
+    """
+    lock_path = cache_path.parent / (cache_path.name + ".lock")
+    deadline = time.monotonic() + timeout_s
+    fd: int | None = None
+    while time.monotonic() < deadline:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            time.sleep(0.01)
+    try:
+        yield
+    finally:
+        if fd is not None:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+            with contextlib.suppress(OSError):
+                lock_path.unlink()
+
+
 def _cached_fetch(
     cache_path: Path,
     ttl: int,
@@ -717,27 +750,34 @@ def _get_daily_cost(data: dict[str, Any]) -> float | None:
     accumulated = 0.0
     sessions: dict[str, float] = {}
 
-    with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
-        cache_text = _DAILY_COST_CACHE_PATH.read_text(encoding="utf-8")
-        cache_obj = json.loads(cache_text)
+    # 複数 statusline プロセスがキャッシュをread-modify-writeする際の
+    # 競合を防ぐためロック内で一連の処理を直列化する
+    with _file_lock(_DAILY_COST_CACHE_PATH):
+        with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError):
+            cache_text = _DAILY_COST_CACHE_PATH.read_text(encoding="utf-8")
+            cache_obj = json.loads(cache_text)
 
-        if cache_obj.get("date") == today:
-            accumulated = float(cache_obj.get("accumulated", 0.0))
-            sessions = cache_obj.get("sessions", {})
+            if cache_obj.get("date") == today:
+                accumulated = float(cache_obj.get("accumulated", 0.0))
+                sessions = cache_obj.get("sessions", {})
 
-    if session_id in sessions:
-        delta = current_total - sessions[session_id]
-        if delta > 0:
-            accumulated += delta
-    # 新規セッションはlast_totalを記録するのみ
-    # (日跨ぎセッションの昨日分コストを含めないため)
+        if session_id in sessions:
+            delta = current_total - sessions[session_id]
+            if delta > 0:
+                accumulated += delta
+        # 新規セッションはlast_totalを記録するのみ
+        # (日跨ぎセッションの昨日分コストを含めないため)
 
-    if sessions.get(session_id) != current_total:
-        sessions[session_id] = current_total
-        _write_cache(
-            _DAILY_COST_CACHE_PATH,
-            {"date": today, "sessions": sessions, "accumulated": accumulated},
-        )
+        if sessions.get(session_id) != current_total:
+            sessions[session_id] = current_total
+            _write_cache(
+                _DAILY_COST_CACHE_PATH,
+                {
+                    "date": today,
+                    "sessions": sessions,
+                    "accumulated": accumulated,
+                },
+            )
     return accumulated
 
 
