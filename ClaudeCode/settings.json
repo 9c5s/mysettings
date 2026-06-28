@@ -100,6 +100,8 @@
 	"autoUpdatesChannel": "latest",
 	"skipDangerousModePermissionPrompt": true,
 	"preferredNotifChannel": "notifications_disabled",
+	"agentPushNotifEnabled": true,
+	"inputNeededNotifEnabled": true,
 	"feedbackSurveyState": {
 		"lastShownTime": 1754086803253
 	}
