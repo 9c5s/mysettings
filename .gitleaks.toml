@@ -1,0 +1,60 @@
+# gitleaks のカスタム設定
+#
+# デフォルトルール(API key, token 等)に加えて、
+# ユーザー名が含まれるホームディレクトリ絶対パスを検出する。
+# 設定ファイルやスクリプトに `C:/Users/<name>/`、`/home/<name>/`、
+# `/Users/<name>/` を直書きすると別環境で動かなくなる上、
+# リポジトリ共有時にユーザー名が露出する。`~` 表記を使うことを推奨。
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "windows-user-home-path"
+description = "Hardcoded Windows per-user path. Use ~ instead of C:/Users/<name>/"
+regex = '''C:[\\/]Users[\\/][A-Za-z0-9._-]+[\\/]'''
+tags = ["pii", "userpath", "windows"]
+[rules.allowlist]
+description = "Built-in shared Windows accounts"
+regexTarget = "match"
+regexes = ['''C:[\\/]Users[\\/](?:Public|Default|All Users)[\\/]''']
+
+[[rules]]
+id = "unix-user-home-path"
+description = "Hardcoded Unix per-user path. Use ~ instead of /home/<name>/"
+regex = '''(?:^|[\s"'(=])/home/[A-Za-z0-9._-]+/'''
+tags = ["pii", "userpath", "unix"]
+[rules.allowlist]
+description = "Built-in shared Unix accounts"
+regexTarget = "match"
+regexes = ['''/home/root/''']
+
+[[rules]]
+id = "macos-user-home-path"
+description = "Hardcoded macOS per-user path. Use ~ instead of /Users/<name>/"
+regex = '''(?:^|[\s"'(=])/Users/[A-Za-z0-9._-]+/'''
+tags = ["pii", "userpath", "macos"]
+[rules.allowlist]
+description = "Built-in shared macOS accounts"
+regexTarget = "match"
+regexes = ['''/Users/Shared/''']
+
+[allowlist]
+description = "Global false positives"
+paths = [
+    # .gitleaks.toml 自身のサンプルパス記述を除外する
+    '''\.gitleaks\.toml$''',
+    # 依存ライブラリ配下のサンプル文字列は対象外
+    '''^\.venv/''',
+    '''^node_modules/''',
+]
+regexes = [
+    # テストやドキュメント内で使う汎用 placeholder
+    # 実在のユーザー名ではないため検出から除外する
+    '''/home/user/''',
+    '''/home/username/''',
+    '''/Users/user/''',
+    '''/Users/username/''',
+    '''C:[\\/]Users[\\/]user[\\/]''',
+    '''C:[\\/]Users[\\/]username[\\/]''',
+]
