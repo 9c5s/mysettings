@@ -962,6 +962,22 @@ class TestSegProject:
         statusline._seg_project(data)
         assert capsys.readouterr().err == ""
 
+    def test_dot_cwd_uses_resolved_name(self) -> None:
+        """cwd='.' なら resolve() 後の現在ディレクトリ名が表示される"""
+        data = {"cwd": "."}
+        seg = statusline._seg_project(data)
+        assert seg is not None
+        expected_name = Path.cwd().name
+        assert expected_name in seg.text
+
+    def test_dotdot_cwd_uses_resolved_parent_name(self) -> None:
+        """cwd='..' なら resolve() 後の親ディレクトリ名が表示される"""
+        data = {"cwd": ".."}
+        seg = statusline._seg_project(data)
+        assert seg is not None
+        expected_name = Path("..").resolve().name
+        assert expected_name in seg.text
+
 
 class TestSegBranch:
     """_seg_branch のテスト"""
