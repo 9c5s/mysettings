@@ -910,22 +910,23 @@ class TestSegProject:
         assert "myproject" in seg.text
 
     def test_absolute_cwd_creates_file_uri_link(self) -> None:
-        """絶対パスのcwdの場合は file:/// 形式のOSC 8リンクを含む"""
+        """絶対パスのcwdの場合は resolve().as_uri() と完全一致するOSC 8リンクを含む"""
         data = {"cwd": self._abs_cwd()}
         seg = statusline._seg_project(data)
         assert seg is not None
         assert "myproject" in seg.text
-        # file:/// 形式のOSC 8リンクを含む
-        assert "\033]8;;file://" in seg.text
+        expected_uri = Path(data["cwd"]).resolve().as_uri()
+        assert expected_uri in seg.text
 
     def test_relative_cwd_resolved_to_file_uri(self) -> None:
-        """相対パスのcwdはresolve()で絶対化されてOSC 8リンクが生成される"""
+        """相対パスのcwdは resolve() で絶対化された URI と完全一致する"""
         # Path.resolve()で実行時cwd基準に絶対化されるため、file:///リンクが付く
         data = {"cwd": "relative/path/myproject"}
         seg = statusline._seg_project(data)
         assert seg is not None
         assert "myproject" in seg.text
-        assert "\033]8;;file://" in seg.text
+        expected_uri = Path(data["cwd"]).resolve().as_uri()
+        assert expected_uri in seg.text
 
     def test_empty_cwd_shows_unknown(self) -> None:
         """cwdが空の場合は"unknown"を表示する"""
@@ -936,20 +937,25 @@ class TestSegProject:
 
     def test_no_longer_depends_on_git_remote(self) -> None:
         """_git の remote_url が無くてもリンクが生成される(絶対パスの場合)"""
-        data = {"cwd": self._abs_cwd(), "_git": {"branch": "main"}}
+        cwd_abs = self._abs_cwd()
+        data = {"cwd": cwd_abs, "_git": {"branch": "main"}}
         seg = statusline._seg_project(data)
         assert seg is not None
         assert "myproject" in seg.text
         # _git を見なくなったので、絶対パスならリンクが付く
-        assert "\033]8;;file://" in seg.text
+        expected_uri = Path(cwd_abs).resolve().as_uri()
+        assert expected_uri in seg.text
 
     def test_resolve_failure_writes_stderr_diagnostic(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """as_uri が例外で失敗した場合は stderr に診断情報を出力する"""
+        """as_uri が例外で失敗した場合は stderr 診断のみ出してリンクは付与しない"""
         data = {"cwd": self._abs_cwd()}
         with patch.object(Path, "as_uri", side_effect=ValueError("uri build error")):
-            statusline._seg_project(data)
+            seg = statusline._seg_project(data)
+        assert seg is not None
+        # as_uri 失敗時は file:/// リンクが出力に含まれない
+        assert "file://" not in seg.text
         err = capsys.readouterr().err
         assert "statusline:" in err
         assert "uri build error" in err
