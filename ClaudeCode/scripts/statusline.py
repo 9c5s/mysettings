@@ -871,7 +871,7 @@ def _seg_context(data: dict[str, Any]) -> Segment | None:
         return None
 
     pct_val = _safe_float(pct)
-    if pct_val is None:
+    if pct_val is None or not math.isfinite(pct_val):
         return None
     pct_int = int(pct_val)
     color = _color_for_utilization(pct_val)

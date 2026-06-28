@@ -1205,6 +1205,16 @@ class TestSegContext:
         """context_windowがdictでない場合はNone"""
         assert statusline._seg_context({"context_window": "not-a-dict"}) is None
 
+    def test_nan_percentage_returns_none(self) -> None:
+        """NaN の used_percentage の場合は None (int() 例外回避)"""
+        data = {"context_window": {"used_percentage": float("nan")}}
+        assert statusline._seg_context(data) is None
+
+    def test_inf_percentage_returns_none(self) -> None:
+        """Infinity の used_percentage の場合は None (int() 例外回避)"""
+        data = {"context_window": {"used_percentage": float("inf")}}
+        assert statusline._seg_context(data) is None
+
 
 class TestSegLines:
     """_seg_lines のテスト"""
