@@ -748,15 +748,20 @@ def _seg_project(data: dict[str, Any]) -> Segment | None:
     表示テキストはbasenameのみとし、リンク先のみカレントディレクトリを指す
     """
     cwd = _get_cwd(data)
-    name = Path(cwd).name or "unknown"
+    path_obj = Path(cwd)
+    name = path_obj.name or "unknown"
 
     # cwd を file:/// URL に変換する
     # resolve() で相対パスも絶対化してから as_uri() を呼ぶ
+    # 解決後のパスから basename も取得し、表示名とリンク先の整合を保つ
+    # (例: cwd="." や ".." で表示名が空や ".." になるのを防ぐ)
     # 失敗時は stderr に診断情報を出力する(stdout は statusline 表示に使われる)
     cwd_url: str | None = None
     if cwd:
         try:
-            cwd_url = Path(cwd).resolve().as_uri()
+            resolved = path_obj.resolve()
+            cwd_url = resolved.as_uri()
+            name = resolved.name or name
         except (OSError, ValueError) as e:
             sys.stderr.write(
                 f"statusline: cannot build file URI from cwd={cwd!r}: {e}\n"
