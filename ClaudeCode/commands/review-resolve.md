@@ -34,7 +34,7 @@ alias rrs='bash "$HOME/.claude/commands/scripts/review-resolve-status.sh"'
 5. 各スレッドに対して: `rrs react <comment_id> +1` または `-1` でリアクション → `rrs resolve <thread_node_id>` で解決
 6. 不採用で理由が分かりにくい場合のみ補足返信。`gh api repos/$OWNER/$REPO/pulls/$N/comments -f body="不採用 (理由1行)" -F in_reply_to=<comment_id>` 。リアクションだけで意思は伝わるので基本不要
 7. diff 範囲外指摘への対応は commit にだけ残す。PR 上で issue comment やスレッド外コメントを作成しない
-8. 完了確認: `rrs unresolved-threads | jq -s 'length'` が 0 になれば未解決スレッドは完了。diff 範囲外指摘は GitHub 上に完了マーカーが無いので、Claude Code の `TaskCreate` / `TaskUpdate` で各 diff 範囲外指摘を 1 件 1 task として登録し対応有無を追跡する
+8. 完了確認: `rrs unresolved-threads | jq -s 'length'` が 0 になれば未解決スレッドは完了。diff 範囲外指摘は GitHub 上に完了マーカーが無いので、Claude Code に組み込みの TaskList ツール (`TaskCreate`/`TaskUpdate` または `TodoWrite` 等、環境で提供されるもの) で各 diff 範囲外指摘を 1 件 1 task として登録し対応有無を追跡する
 
 ## リアクションスタイル
 
