@@ -72,6 +72,9 @@ alias rrs='bash "$HOME/.claude/commands/scripts/review-resolve-status.sh"'
 `Monitor` ツールに以下を `persistent: true`, `timeout_ms: 3600000` で渡す。終了時 `TaskStop`。walkthrough は edit なので別途 updated_at を tail する:
 
 ```
+# pipefail: rrs | jq の左側 (rrs) が失敗しても jq が 0 で抜けて poll-failed が出ないのを防ぐ
+set -o pipefail
+
 last="$LAST_PUSH_TS"
 walkthrough_last=""
 
@@ -83,6 +86,11 @@ date_minus_1s() {
 }
 
 while true; do
+  # 次回 last の候補を polling 開始前 (= polling 完了より過去) に確定する。
+  # polling 中に created された event は今回の last より新しく next_watermark より古くなり、
+  # 今回のクエリで漏れた場合でも次回 iteration で必ず拾える。
+  next_watermark=$(date_minus_1s)
+
   # 失敗時は stdout に "poll-failed: ..." を出して通知化する。失敗を黙殺すると
   # 15 分タイムアウト判定で「無音」と区別できず誤って終了するため。
   gh api --paginate "repos/$OWNER/$REPO/pulls/$N/reviews" \
@@ -102,11 +110,11 @@ while true; do
     fi
     walkthrough_last="$walkthrough_now"
   else
+    # cmd_walkthrough_state は lookup_failed のとき exit 1 を返す。no_walkthrough は exit 0
     echo "poll-failed: walkthrough-state"
   fi
-  # GitHub timestamp は秒精度のため、now と同じ秒に created された event を次回取りこぼさないよう
-  # last を 1 秒戻して窓を重ねる。重複イベントは react/resolve が冪等なので実害なし
-  last=$(date_minus_1s)
+
+  last="$next_watermark"
   sleep 30
 done
 ```
@@ -121,7 +129,7 @@ done
    - c. 修正 → `bun plugin/src/patch-server.ts --make` 等の再生成 → テスト → `git add` → `git commit` → `git push` (確認なし) → `eval "$(rrs init)"` を再実行して `LAST_PUSH_TS` を新 head に更新
    - d. `rrs react <cid> +1|-1` + `rrs resolve <node_id>`
    - e. `rrs codex-reaction` で 👍 なら即終了、👀 なら待機継続
-   - f. `rrs walkthrough-state` が `no_actionable` で `updated_at > LAST_PUSH_TS` なら CodeRabbit 観点で終了確定
+   - f. `rrs walkthrough-state` が `no_actionable` で `updated_at > LAST_PUSH_TS` **かつ** `rrs outside-diff-reviews` も空なら CodeRabbit 観点で終了確定。`no_actionable` は inline 指摘数 0 を意味するだけで、outside-diff/nitpick が body に残っているケースを取りこぼすため両方をチェックする
 4. 15 分新着もリアクション変化も walkthrough 更新も `poll-failed` も無ければ終了判定。Codex 👀 が残っていれば +5〜10 分延長。`poll-failed: ...` が連続して出ている間は API 不調なので終了判定の無音タイマーをリセットする
 5. 終了確定で `TaskStop` → ユーザーに完了報告
 
