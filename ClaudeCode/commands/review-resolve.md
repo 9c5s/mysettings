@@ -35,8 +35,8 @@ rrs() { bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" "$@"; }
 2. `rrs outside-diff-reviews` で「Outside diff range」を含む review 本文を取得。bot 表記揺れで漏れる場合は `gh api repos/$OWNER/$REPO/pulls/$N/reviews --paginate --jq '.[] | select(.body!="") | {id, user: .user.login, body}'` で全件目視併用
 3. 各指摘について「採用/不採用」と理由を決める。コード修正が必要なら先に実装する
 4. コード修正があれば `git add` → `git commit` → `git push` を実行する。通常モードはユーザーに push 確認、`--loop` モードは確認なしで即実行。push 後は commit hash を控え、`eval "$(rrs init)"` を再実行して `LAST_PUSH_TS` を新 head に更新する
-5. 各スレッドに対して: `rrs react <comment_id> +1` または `-1` でリアクション → `rrs resolve <thread_node_id>` で解決
-6. 不採用で理由が分かりにくい場合のみ補足返信。`gh api repos/$OWNER/$REPO/pulls/$N/comments -f body="不採用 (理由1行)" -F in_reply_to=<comment_id>` 。リアクションだけで意思は伝わるので基本不要
+5. 各スレッドに対して: `rrs react <cid> +1` または `-1` でリアクション → `rrs resolve <thread_node_id>` で解決
+6. 不採用で理由が分かりにくい場合のみ補足返信。`gh api repos/$OWNER/$REPO/pulls/$N/comments -f body="不採用 (理由1行)" -F in_reply_to=<cid>` 。リアクションだけで意思は伝わるので基本不要
 7. diff 範囲外指摘への対応は commit にだけ残す。PR 上で issue comment やスレッド外コメントを作成しない
 8. 完了確認: `rrs unresolved-threads | jq -s 'length'` が 0 になれば未解決スレッドは完了。diff 範囲外指摘は GitHub 上に完了マーカーが無いので、Claude Code に組み込みの TaskList ツール (`TaskCreate`/`TaskUpdate` または `TodoWrite` 等、環境で提供されるもの) で各 diff 範囲外指摘を 1 件 1 task として登録し対応有無を追跡する
 
