@@ -9,7 +9,7 @@
 # サブコマンド:
 #   init                       OWNER/REPO/N/MY_LOGIN/LAST_PUSH_TS を echo (env 設定用)
 #   unresolved-threads         未解決 reviewThread を JSON 行で列挙 (pagination 対応)
-#   outside-diff-reviews       「Outside diff range」を含む review を JSON 行で列挙
+#   outside-diff-reviews [TS]  「Outside diff range」を含む review を JSON 行で列挙。TS 指定で submitted_at > TS のみに絞る
 #   react PR_COMMENT_ID +1|-1  PR review comment にリアクションを付ける
 #   resolve THREAD_NODE_ID     reviewThread を resolved にする
 #   walkthrough-id             CodeRabbit walkthrough コメント (最新) の databaseId を返す
@@ -67,7 +67,7 @@ _fetch_all_review_threads() {
     else
       cursor_arg="\"$cursor\""
     fi
-    if ! json=$(gh api graphql -f query="query { repository(owner: \"$OWNER\", name: \"$REPO\") { pullRequest(number: $N) { reviewThreads(first: 100, after: $cursor_arg) { pageInfo { hasNextPage endCursor } nodes { id isResolved path line comments(first: 10) { nodes { databaseId author { login } body createdAt } } } } } } }"); then
+    if ! json=$(gh api graphql -f query="query { repository(owner: \"$OWNER\", name: \"$REPO\") { pullRequest(number: $N) { reviewThreads(first: 100, after: $cursor_arg) { pageInfo { hasNextPage endCursor } nodes { id isResolved path line comments(first: 100) { nodes { databaseId author { login } body createdAt } } } } } } }"); then
       echo "_fetch_all_review_threads: gh api graphql failed (auth/rate-limit/network)" >&2
       return 1
     fi
@@ -88,8 +88,16 @@ cmd_unresolved_threads() {
 cmd_outside_diff_reviews() {
   owner_repo_n
   # 表記揺れ対応: "outside (the) diff range" / "outside the diff" / "outside-diff" 等を広く拾う
-  gh api "repos/$OWNER/$REPO/pulls/$N/reviews" --paginate \
-    --jq '.[] | select(.body != null and (.body | test("(?i)outside\\b.*diff"))) | {id: .id, user: (.user.login? // "ghost"), submitted: .submitted_at, body: .body}'
+  # optional 第 1 引数 SINCE_TS (ISO8601) が指定されたらその時刻以降の review に絞る。
+  # loop モードで `$LAST_PUSH_TS` 以降の outside-diff を判定するのに使う。
+  local since="${1:-}"
+  if [ -n "$since" ]; then
+    gh api "repos/$OWNER/$REPO/pulls/$N/reviews" --paginate \
+      --jq ".[] | select(.body != null and (.body | test(\"(?i)outside\\\\b.*diff\"))) | select(.submitted_at > \"$since\") | {id: .id, user: (.user.login? // \"ghost\"), submitted: .submitted_at, body: .body}"
+  else
+    gh api "repos/$OWNER/$REPO/pulls/$N/reviews" --paginate \
+      --jq '.[] | select(.body != null and (.body | test("(?i)outside\\b.*diff"))) | {id: .id, user: (.user.login? // "ghost"), submitted: .submitted_at, body: .body}'
+  fi
 }
 
 cmd_react() {
