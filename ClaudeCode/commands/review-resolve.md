@@ -27,7 +27,7 @@ eval "$(bash ~/.claude/commands/scripts/review-resolve-status.sh init)"
 
 - スレッドの最初の comment に 👍/👎 リアクションのみ。テキスト返信はしない。採用 commit hash は同 push の git log で辿れるので重複説明にならない
 - 修正コミットのコード/docs コメントには設計判断の WHY だけ書く。「N 巡目指摘」「PR #X で指摘」のような経緯ラベルは git log と PR から参照できるので書かない
-- 補足返信は「不採用理由が 1 行で済まない」ときの特例のみ。日本語・「だ・である」調
+- **不採用時のみ coderabbit (coderabbitai[bot]) に対してだけ簡潔な理由を添えて返信する**。他の bot (gemini-code-assist, chatgpt-codex-connector など) は不採用でもリアクションのみで返信しない。理由返信は 1〜2 行・日本語・「だ・である」調
 
 ## --loop モード (`/review-resolve --loop`)
 
