@@ -144,18 +144,19 @@ cmd_walkthrough_state() {
     echo "updated_at=none state=no_walkthrough"
     return 0
   fi
-  # rate-limit マーカーは body に履歴として残るため単純な存在チェックだと過去レビューの rate-limit でも true になる。
-  # rate-limit 状態は必ず in_progress と共起する (review in progress + rate limit warning) ので、
-  # in_progress 分岐の中でのみ rate_limited を判定する。Actionable comments posted があれば
-  # 既にレビュー完了済みのため過去 rate-limit 履歴は無視する。
+  # 判定優先順序: 完了マーカー (Actionable / No actionable) > 進行中 > rate_limit > unknown。
+  # 完了マーカーを最優先することで、body に残った過去の rate_limit 履歴を「完了済」が上書きする。
+  # in_progress マーカー無しで rate_limit マーカーのみのケース (CodeRabbit がレビュー開始前に
+  # rate_limit に到達) は rate_limited として正しく判定する。
   gh api "repos/$OWNER/$REPO/issues/comments/$wid" --jq '
     .updated_at as $u
     | (.body // "") as $b
-    | (if ($b | contains("review in progress by coderabbit.ai")) then
-        (if ($b | contains("rate limited by coderabbit.ai")) then "rate_limited" else "in_progress" end)
-       elif ($b | contains("Actionable comments posted: 0")) then "no_actionable"
+    | (if ($b | contains("Actionable comments posted: 0")) then "no_actionable"
        elif ($b | test("Actionable comments posted: [1-9]")) then "has_actionable"
        elif ($b | contains("No actionable comments were generated")) then "no_actionable"
+       elif ($b | contains("review in progress by coderabbit.ai")) then
+        (if ($b | contains("rate limited by coderabbit.ai")) then "rate_limited" else "in_progress" end)
+       elif ($b | contains("rate limited by coderabbit.ai")) then "rate_limited"
        else "unknown" end) as $state
     | "updated_at=\($u) state=\($state)"'
 }
