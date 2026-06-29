@@ -112,6 +112,7 @@
 	"preferredNotifChannel": "notifications_disabled",
 	"agentPushNotifEnabled": true,
 	"inputNeededNotifEnabled": true,
+	"remoteControlAtStartup": true,
 	"feedbackSurveyState": {
 		"lastShownTime": 1754086803253
 	}
