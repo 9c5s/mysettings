@@ -20,10 +20,14 @@ _rrs_init_out=$(bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" i
   && eval "$_rrs_init_out" \
   || { echo "rrs init failed; abort setup" >&2; return 1 2>/dev/null || exit 1; }
 unset _rrs_init_out
-alias rrs='bash "$HOME/.claude/commands/scripts/review-resolve-status.sh"'
+# alias ではなく function を使う: Claude Code の Bash tool 等の non-interactive shell は
+# 既定で alias 展開しない (shopt -s expand_aliases が必要)。function は non-interactive でも動く。
+# ただし function も同一 shell プロセス内でのみ有効で、別の Bash invocation には継承されない。
+# 別 invocation で `rrs` を使う場合は、その都度この初期化ブロック全体を再実行する
+rrs() { bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" "$@"; }
 ```
 
-以降の本文中の `rrs` は上記 alias を指す。alias を使わない場合は `bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" <subcommand>` に読み替える。
+以降の本文中の `rrs` は上記 function を指す。別 shell で実行する場合は `bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" <subcommand>` に読み替えるか、再度この初期化ブロックを `eval` する。
 
 ## 手順 (通常モード)
 
