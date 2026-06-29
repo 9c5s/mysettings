@@ -215,17 +215,29 @@ cmd_codex_cleared() {
   # 2. Codex が usage limit comment を投稿済み (SINCE 無関係 / 全期間で検索) = 課金上限到達で
   #    これ以降の push でも Codex はレビューしない確定。一度発生したら以降のすべての loop で
   #    Codex 観点を「待っても来ない」として永久に clear 扱いにする
-  # どちらかを満たせば exit 0、無ければ exit 1。stdout に判定理由を出す
-  local found
+  # 終了コード: 0=cleared, 1=not_cleared, 2=lookup_failed (gh api 失敗)
+  # API 失敗を not_cleared と区別することで、呼び出し元が「真の未達」か「判定不能」かを分けて扱える
+  local found rc=0
   found=$(gh api --paginate "repos/$OWNER/$REPO/issues/$N/reactions" \
-    --jq ".[] | select(.user.login == \"chatgpt-codex-connector[bot]\") | select(.content == \"+1\") | select(.created_at > \"$since\") | .created_at" | head -1)
+    --jq ".[] | select(.user.login == \"chatgpt-codex-connector[bot]\") | select(.content == \"+1\") | select(.created_at > \"$since\") | .created_at") || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "lookup_failed: reactions API (rc=$rc)" >&2
+    return 2
+  fi
+  found=$(printf '%s' "$found" | head -1)
   if [ -n "$found" ]; then
     echo "cleared: +1 reaction at $found"
     return 0
   fi
   # usage_limit comment は SINCE フィルタなしで全期間検索する (一度出たら永久 clear)
+  rc=0
   found=$(gh api --paginate "repos/$OWNER/$REPO/issues/$N/comments" \
-    --jq ".[] | select(.user.login == \"chatgpt-codex-connector[bot]\") | select(.body | test(\"reached your Codex usage limits\")) | .created_at" | head -1)
+    --jq ".[] | select(.user.login == \"chatgpt-codex-connector[bot]\") | select(.body | test(\"reached your Codex usage limits\")) | .created_at") || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "lookup_failed: comments API (rc=$rc)" >&2
+    return 2
+  fi
+  found=$(printf '%s' "$found" | head -1)
   if [ -n "$found" ]; then
     echo "cleared: usage_limit comment at $found (Codex は usage limit 到達後、以降の push でもレビューしない確定)"
     return 0
