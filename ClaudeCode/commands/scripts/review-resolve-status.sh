@@ -186,7 +186,8 @@ cmd_coderabbit_trigger() {
   owner_repo_n
   # POST レスポンスの created_at を posted_at として返す (ローカル時計に依存しない)
   # 失敗時は jq に渡る前に exit code が非 0 になり (set -uo pipefail)、何も出力されない
-  gh api "repos/$OWNER/$REPO/issues/$N/comments" -f body="@coderabbit review" \
+  # bot handle は `@coderabbitai` (公式ドキュメント表記、bot login も `coderabbitai[bot]` に合致)
+  gh api "repos/$OWNER/$REPO/issues/$N/comments" -f body="@coderabbitai review" \
     --jq '"comment_id=\(.id) posted_at=\(.created_at)"'
 }
 
