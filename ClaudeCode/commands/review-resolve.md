@@ -80,7 +80,9 @@ Fallback 終了 (どれか 1 つ満たせば停止):
 
 ### 監視 Monitor (起動 1 回・persistent)
 
-`Monitor` ツールに以下を `persistent: true`, `timeout_ms: 3600000` で渡す。終了時 `TaskStop`。walkthrough は edit なので別途 updated_at を tail する:
+`Monitor` ツールに以下を `persistent: true`, `timeout_ms: 3600000` で渡す。終了時 `TaskStop`。walkthrough は edit なので別途 updated_at を tail する。
+
+前提: `eval "$(... init)"` が **親 shell に対して** `export OWNER=... REPO=... N=... MY_LOGIN=... LAST_PUSH_TS=...` を済ませてあること。Monitor の child shell は親 env を継承するが、`OWNER=value` 形式のローカル変数は継承されないので必ず `export` 経由で渡す:
 
 ```
 # pipefail: rrs | jq の左側 (rrs) が失敗しても jq が 0 で抜けて poll-failed が出ないのを防ぐ
