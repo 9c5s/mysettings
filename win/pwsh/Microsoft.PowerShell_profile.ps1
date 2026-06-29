@@ -2,7 +2,7 @@ $env:PATH = "$env:PATH$([System.IO.Path]::PathSeparator)$env:LOCALAPPDATA\Micros
 
 # コマンドエイリアス
 function ll { eza -lahF --time-style "+%y/%m/%d %H:%M" @args }
-function claude { & "~/.local/bin/claude.exe" --dangerously-skip-permissions @args }
+function claude { & "~/.local/bin/claude.exe" --dangerously-skip-permissions --effort max --channels plugin:discord@claude-plugins-official @args }
 
 # oh-my-posh設定
 oh-my-posh init pwsh --config 'https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/emodipt-extend.omp.json' | Invoke-Expression
