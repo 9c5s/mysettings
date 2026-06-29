@@ -148,17 +148,46 @@ cmd_walkthrough_state() {
   # 完了マーカーを最優先することで、body に残った過去の rate_limit 履歴を「完了済」が上書きする。
   # in_progress マーカー無しで rate_limit マーカーのみのケース (CodeRabbit がレビュー開始前に
   # rate_limit に到達) は rate_limited として正しく判定する。
-  gh api "repos/$OWNER/$REPO/issues/comments/$wid" --jq '
-    .updated_at as $u
-    | (.body // "") as $b
-    | (if ($b | contains("Actionable comments posted: 0")) then "no_actionable"
-       elif ($b | test("Actionable comments posted: [1-9]")) then "has_actionable"
-       elif ($b | contains("No actionable comments were generated")) then "no_actionable"
-       elif ($b | contains("review in progress by coderabbit.ai")) then
-        (if ($b | contains("rate limited by coderabbit.ai")) then "rate_limited" else "in_progress" end)
-       elif ($b | contains("rate limited by coderabbit.ai")) then "rate_limited"
-       else "unknown" end) as $state
-    | "updated_at=\($u) state=\($state)"'
+  local data updated_at body state
+  data=$(gh api "repos/$OWNER/$REPO/issues/comments/$wid" --jq '{updated_at, body: (.body // "")}')
+  updated_at=$(printf '%s' "$data" | jq -r '.updated_at')
+  body=$(printf '%s' "$data" | jq -r '.body')
+  if printf '%s' "$body" | grep -q "Actionable comments posted: 0"; then
+    state="no_actionable"
+  elif printf '%s' "$body" | grep -qE "Actionable comments posted: [1-9]"; then
+    state="has_actionable"
+  elif printf '%s' "$body" | grep -q "No actionable comments were generated"; then
+    state="no_actionable"
+  elif printf '%s' "$body" | grep -q "review in progress by coderabbit.ai"; then
+    if printf '%s' "$body" | grep -q "rate limited by coderabbit.ai"; then
+      state="rate_limited"
+    else
+      state="in_progress"
+    fi
+  elif printf '%s' "$body" | grep -q "rate limited by coderabbit.ai"; then
+    state="rate_limited"
+  else
+    state="unknown"
+  fi
+  # rate_limited のときは body から「More reviews will be available in N minutes (and M seconds)」を抽出して
+  # walkthrough の updated_at に加算した reset 予定時刻 (ISO8601 UTC) を出力に付与する。
+  # 呼び出し元はこれを使って「reset まで待つ → 再判定」を判断できる。
+  local extra=""
+  if [ "$state" = "rate_limited" ]; then
+    local mins secs total updated_epoch reset_epoch reset_at
+    mins=$(printf '%s' "$body" | grep -oE 'More reviews will be available in [0-9]+ minutes?' | grep -oE '[0-9]+' | head -1)
+    secs=$(printf '%s' "$body" | grep -oE 'and [0-9]+ seconds?' | grep -oE '[0-9]+' | head -1)
+    if [ -n "$mins" ]; then
+      total=$((mins * 60 + ${secs:-0}))
+      updated_epoch=$(date -u -d "$updated_at" +%s 2> /dev/null || date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$updated_at" +%s 2> /dev/null || echo "")
+      if [ -n "$updated_epoch" ]; then
+        reset_epoch=$((updated_epoch + total))
+        reset_at=$(date -u -r "$reset_epoch" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || date -u -d "@$reset_epoch" +%Y-%m-%dT%H:%M:%SZ)
+        extra=" rate_limit_reset_at=$reset_at"
+      fi
+    fi
+  fi
+  echo "updated_at=$updated_at state=$state$extra"
 }
 
 cmd_walkthrough_history() {
