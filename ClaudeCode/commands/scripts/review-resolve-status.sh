@@ -3,7 +3,7 @@
 # SC2250: jq クエリ内の $u/$b/$state を bash 変数として誤検知し brace 化を強制するため無効化
 # SC2016: jq の文字列補間 \($u) を含む single-quoted 文字列を意図的に使用するため無効化
 # review-resolve スキル用のステータス取得ヘルパー
-# 使い方: source このスクリプト, または直接サブコマンドで実行
+# 使い方: 直接サブコマンドで実行する (source による取り込みは想定しない)
 #   $ bash review-resolve-status.sh <subcommand> <args>
 #
 # サブコマンド:
@@ -40,8 +40,20 @@ cmd_init() {
   # gh API には PR commit ごとの pushedDate が無く、push 時刻の正確な取得には timeline events 走査が必要で複雑。
   # 現状は許容範囲として committedDate を採用。
   read -r n last_push <<< "$(gh pr view --json number,commits --jq '"\(.number) \(.commits[-1].committedDate)"')"
+  if [ -z "$n" ] || [ -z "$last_push" ]; then
+    echo "init: gh pr view failed (PR が見つからない、未認証、または PR check-out 外)" >&2
+    return 1
+  fi
   login=$(gh api user --jq .login)
+  if [ -z "$login" ]; then
+    echo "init: gh api user failed (未認証)" >&2
+    return 1
+  fi
   read -r owner repo <<< "$(gh repo view --json owner,name --jq '"\(.owner.login) \(.name)"')"
+  if [ -z "$owner" ] || [ -z "$repo" ]; then
+    echo "init: gh repo view failed" >&2
+    return 1
+  fi
   printf 'export OWNER=%q REPO=%q N=%q MY_LOGIN=%q LAST_PUSH_TS=%q\n' "$owner" "$repo" "$n" "$login" "$last_push"
 }
 
@@ -158,19 +170,31 @@ cmd_codex_reaction() {
 cmd_completion_summary() {
   owner_repo_n
   : "${MY_LOGIN:?MY_LOGIN not set; run 'review-resolve-status.sh init' first}"
+  # 各セクションで「0 件」と「API 失敗」を区別する。bash 関数の終了ステータスは
+  # `$?` で取れるが、コマンド置換 + パイプ後は失敗を捕捉しづらいため、各 helper を
+  # `if cmd; then` で実行して取得成否を分岐する。
   echo "--- threads (resolved/unresolved + hasMyReply) ---"
   local threads
-  threads=$(_fetch_all_review_threads | jq -r --arg me "$MY_LOGIN" '
-    "\(if .isResolved then "[resolved]  " else "[unresolved]" end) \(.path):\(.line) cid=\(.comments.nodes[0].databaseId? // "none") author=\(.comments.nodes[0].author.login? // "ghost") hasMyReply=\([.comments.nodes[].author.login?] | any(. == $me))"')
-  echo "${threads:-(none)}"
+  if threads=$(_fetch_all_review_threads | jq -r --arg me "$MY_LOGIN" '
+    "\(if .isResolved then "[resolved]  " else "[unresolved]" end) \(.path):\(.line) cid=\(.comments.nodes[0].databaseId? // "none") author=\(.comments.nodes[0].author.login? // "ghost") hasMyReply=\([.comments.nodes[].author.login?] | any(. == $me))"'); then
+    echo "${threads:-(0件)}"
+  else
+    echo "(取得失敗)"
+  fi
   echo "--- codex reactions ---"
   local reactions
-  reactions=$(cmd_codex_reaction)
-  echo "${reactions:-(none)}"
+  if reactions=$(cmd_codex_reaction); then
+    echo "${reactions:-(0件)}"
+  else
+    echo "(取得失敗)"
+  fi
   echo "--- coderabbit walkthrough state ---"
   local state
-  state=$(cmd_walkthrough_state)
-  echo "${state:-(none)}"
+  if state=$(cmd_walkthrough_state); then
+    echo "${state:-(0件)}"
+  else
+    echo "(取得失敗)"
+  fi
 }
 
 main() {
