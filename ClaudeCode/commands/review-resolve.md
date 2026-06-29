@@ -74,19 +74,39 @@ alias rrs='bash "$HOME/.claude/commands/scripts/review-resolve-status.sh"'
 ```
 last="$LAST_PUSH_TS"
 walkthrough_last=""
+
+# BSD (date -r EPOCH) と GNU (date -d @EPOCH) の両対応で 1 秒戻した ISO8601 を返す
+date_minus_1s() {
+  local epoch=$(($(date +%s) - 1))
+  date -u -r "$epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+    || date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ
+}
+
 while true; do
-  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  gh api --paginate "repos/$OWNER/$REPO/pulls/$N/reviews" --jq ".[] | select(.submitted_at > \"$last\") | select(.user.login != \"$MY_LOGIN\") | \"review: \(.user.login) at \(.submitted_at) id=\(.id)\"" 2>/dev/null || true
-  gh api --paginate "repos/$OWNER/$REPO/issues/$N/comments" --jq ".[] | select(.created_at > \"$last\") | select(.user.login != \"$MY_LOGIN\") | \"comment: \(.user.login) at \(.created_at) id=\(.id)\"" 2>/dev/null || true
-  gh api graphql -f query="query { repository(owner: \"$OWNER\", name: \"$REPO\") { pullRequest(number: $N) { reviewThreads(first: 100) { nodes { id isResolved comments(first: 5) { nodes { author { login } createdAt databaseId } } } } } } }" --jq ".data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved==false) | .comments.nodes[] | select(.createdAt > \"$last\") | select(.author.login != \"$MY_LOGIN\") | \"thread: \(.author.login) at \(.createdAt) cid=\(.databaseId)\"" 2>/dev/null || true
-  walkthrough_now=$(bash ~/.claude/commands/scripts/review-resolve-status.sh walkthrough-state 2>/dev/null)
-  if [ -n "$walkthrough_now" ] && [ "$walkthrough_now" != "$walkthrough_last" ] && [ -n "$walkthrough_last" ]; then
-    echo "walkthrough: $walkthrough_now"
+  # 失敗時は stdout に "poll-failed: ..." を出して通知化する。失敗を黙殺すると
+  # 15 分タイムアウト判定で「無音」と区別できず誤って終了するため。
+  gh api --paginate "repos/$OWNER/$REPO/pulls/$N/reviews" \
+    --jq ".[] | select(.submitted_at > \"$last\") | select(.user.login != \"$MY_LOGIN\") | \"review: \(.user.login) at \(.submitted_at) id=\(.id)\"" \
+    || echo "poll-failed: reviews"
+  gh api --paginate "repos/$OWNER/$REPO/issues/$N/comments" \
+    --jq ".[] | select(.created_at > \"$last\") | select(.user.login != \"$MY_LOGIN\") | \"comment: \(.user.login) at \(.created_at) id=\(.id)\"" \
+    || echo "poll-failed: comments"
+  # rrs unresolved-threads は GraphQL pagination 済 (review-resolve-status.sh 側で cursor 追跡)
+  bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" unresolved-threads \
+    | jq -r --arg last "$last" --arg me "$MY_LOGIN" \
+      '.comments.nodes[] | select(.createdAt > $last) | select(.author.login != $me) | "thread: \(.author.login) at \(.createdAt) cid=\(.databaseId)"' \
+    || echo "poll-failed: threads"
+  if walkthrough_now=$(bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" walkthrough-state); then
+    if [ "$walkthrough_now" != "$walkthrough_last" ] && [ -n "$walkthrough_last" ]; then
+      echo "walkthrough: $walkthrough_now"
+    fi
+    walkthrough_last="$walkthrough_now"
+  else
+    echo "poll-failed: walkthrough-state"
   fi
-  walkthrough_last="$walkthrough_now"
   # GitHub timestamp は秒精度のため、now と同じ秒に created された event を次回取りこぼさないよう
   # last を 1 秒戻して窓を重ねる。重複イベントは react/resolve が冪等なので実害なし
-  last=$(date -u -d '1 second ago' +%Y-%m-%dT%H:%M:%SZ)
+  last=$(date_minus_1s)
   sleep 30
 done
 ```
@@ -98,11 +118,11 @@ done
 3. notification 受信時:
    - a. 内容確認 → 対応方針決定
    - b. 大規模変更 (※後述) はユーザー確認 → 承認後実装
-   - c. 修正 → `bun plugin/src/patch-server.ts --make` 等の再生成 → テスト → `git add` → `git commit` → `git push` (確認なし)
+   - c. 修正 → `bun plugin/src/patch-server.ts --make` 等の再生成 → テスト → `git add` → `git commit` → `git push` (確認なし) → `eval "$(rrs init)"` を再実行して `LAST_PUSH_TS` を新 head に更新
    - d. `rrs react <cid> +1|-1` + `rrs resolve <node_id>`
    - e. `rrs codex-reaction` で 👍 なら即終了、👀 なら待機継続
    - f. `rrs walkthrough-state` が `no_actionable` で `updated_at > LAST_PUSH_TS` なら CodeRabbit 観点で終了確定
-4. 15 分新着もリアクション変化も walkthrough 更新も無ければ終了判定。Codex 👀 が残っていれば +5〜10 分延長
+4. 15 分新着もリアクション変化も walkthrough 更新も `poll-failed` も無ければ終了判定。Codex 👀 が残っていれば +5〜10 分延長。`poll-failed: ...` が連続して出ている間は API 不調なので終了判定の無音タイマーをリセットする
 5. 終了確定で `TaskStop` → ユーザーに完了報告
 
 ### 大規模変更の合図
