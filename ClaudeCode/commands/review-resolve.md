@@ -1,14 +1,19 @@
+---
+name: review-resolve
+description: PR の未解決レビュースレッド全てに対応方針 (採用/不採用) を判定し 👍/👎 リアクション + resolve する。コード修正が必要なら commit/push まで完結させ、`--loop` モードでは bot の追加レビューを Monitor で監視して来なくなるまで自動対応を繰り返す。レビュー指摘への返信・review thread の resolve・CodeRabbit/Codex/gemini など複数 bot レビューの 1 巡 / 反復対応・「レビュー対応」「レビュー潰し」「PR のコメントに返事してくれ」のような依頼で必ず使う。
+---
+
 # レビュー指摘への対応
 
 PR の未解決レビュースレッド全てに対し、対応方針 (採用/不採用) を決め、必要ならコード修正・push し、👍/👎 リアクションを付けて resolve する。スレッド外の指摘 (diff 範囲外コメント等) はコード修正と git log で完結させ PR 上で新規コメントを作らない。意思表示の手段が無いところにノイズを増やさないため。
 
-定型操作は `scripts/review-resolve-status.sh` (以下 `rrs`) にまとめてある。jq クエリや GraphQL の引数を覚えず、サブコマンド名だけで呼べる。
-
 ## 初期化
+
+定型操作は `scripts/review-resolve-status.sh` (本ドキュメント中で alias `rrs` として参照) にまとめてある。jq クエリや GraphQL の引数を覚えず、サブコマンド名だけで呼べる。
 
 `rrs init` が `OWNER`/`REPO`/`N`/`MY_LOGIN`/`LAST_PUSH_TS` を export 文として吐く。以降のサブコマンドはこの env を参照する。
 
-```
+```bash
 # init が失敗 (auth/rate-limit/PR check-out 外) した場合に空 env で続行しないよう、
 # 出力をいったん変数で受け取り init の exit code を eval 前にチェックする
 _rrs_init_out=$(bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" init) \
@@ -29,7 +34,7 @@ alias rrs='bash "$HOME/.claude/commands/scripts/review-resolve-status.sh"'
 5. 各スレッドに対して: `rrs react <comment_id> +1` または `-1` でリアクション → `rrs resolve <thread_node_id>` で解決
 6. 不採用で理由が分かりにくい場合のみ補足返信。`gh api repos/$OWNER/$REPO/pulls/$N/comments -f body="不採用 (理由1行)" -F in_reply_to=<comment_id>` 。リアクションだけで意思は伝わるので基本不要
 7. diff 範囲外指摘への対応は commit にだけ残す。PR 上で issue comment やスレッド外コメントを作成しない
-8. 完了確認: `rrs unresolved-threads | jq -s 'length'` が 0 になれば未解決スレッドは完了。diff 範囲外指摘は GitHub 上に完了マーカーが無いので、本コマンドの TaskList で対応有無を追跡する
+8. 完了確認: `rrs unresolved-threads | jq -s 'length'` が 0 になれば未解決スレッドは完了。diff 範囲外指摘は GitHub 上に完了マーカーが無いので、Claude Code の `TaskCreate` / `TaskUpdate` で各 diff 範囲外指摘を 1 件 1 task として登録し対応有無を追跡する
 
 ## リアクションスタイル
 
