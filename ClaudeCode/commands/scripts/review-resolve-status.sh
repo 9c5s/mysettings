@@ -115,10 +115,11 @@ cmd_resolve() {
 cmd_walkthrough_id() {
   owner_repo_n
   # 複数回投稿された walkthrough の中で最新 (updated_at が最大) を返す。
-  # --paginate 単体ではページごとに jq が走り、ページ毎の last しか取れないため、
-  # --slurp で全ページを 1 配列に集めてから sort_by | last を適用する。
-  gh api --paginate --slurp "repos/$OWNER/$REPO/issues/$N/comments" \
-    --jq 'add | [.[] | select(.user.login == "coderabbitai[bot]") | select(.body | startswith("<!-- This is an auto-generated comment: summarize by coderabbit.ai -->"))] | sort_by(.updated_at) | last | .id // empty'
+  # `gh api --paginate --jq` 単体ではページごとに jq が走り、ページ毎の last しか取れない。
+  # 一方 `--paginate --slurp` は `--jq` と排他なので、--paginate の生出力 (各ページ配列の連結)
+  # を `jq -s 'add | ...'` に流し込んで全ページを 1 配列に集めてから sort_by | last を適用する
+  gh api --paginate "repos/$OWNER/$REPO/issues/$N/comments" \
+    | jq -s 'add | [.[] | select(.user.login == "coderabbitai[bot]") | select(.body | startswith("<!-- This is an auto-generated comment: summarize by coderabbit.ai -->"))] | sort_by(.updated_at) | last | .id // empty'
 }
 
 cmd_walkthrough_state() {
