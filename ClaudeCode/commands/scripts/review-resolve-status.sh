@@ -8,18 +8,18 @@
 #
 # サブコマンド:
 #   init                       OWNER/REPO/N/MY_LOGIN/LAST_PUSH_TS を echo (env 設定用)
-#   unresolved-threads         未解決 reviewThread を JSON 行で列挙
+#   unresolved-threads         未解決 reviewThread を JSON 行で列挙 (pagination 対応)
 #   outside-diff-reviews       「Outside diff range」を含む review を JSON 行で列挙
 #   react PR_COMMENT_ID +1|-1  PR review comment にリアクションを付ける
 #   resolve THREAD_NODE_ID     reviewThread を resolved にする
-#   walkthrough-id             CodeRabbit walkthrough コメントの databaseId を返す
+#   walkthrough-id             CodeRabbit walkthrough コメント (最新) の databaseId を返す
 #   walkthrough-state          walkthrough の現在状態を1行で出す
-#                              形式: updated_at=<iso> state=<in_progress|rate_limited|no_actionable|has_actionable|unknown>
+#                              形式: updated_at=<iso> state=<in_progress|rate_limited|no_actionable|has_actionable|lookup_failed|no_walkthrough|unknown>
 #   walkthrough-history        walkthrough の編集履歴をマーカー分類付きで列挙
-#   coderabbit-trigger         '@coderabbit review' を投稿し comment ID と時刻を出す
+#   coderabbit-trigger         '@coderabbit review' を投稿し comment ID と posted_at を出す
 #   bot-reviews-since TS       TS 以降の bot review を列挙 (login/submitted/id)
 #   codex-reaction             Codex の PR-issue リアクションを列挙 (eyes/+1/-1)
-#   completion-summary         未解決スレッド数と各 bot シグナルの現在値を1ブロックで出す
+#   completion-summary         全 thread の resolved/hasMyReply + Codex リアクション + walkthrough 状態を出力
 #
 # 設計: review-resolve.md の検知ロジックを全てここに集約し、skill 本体は
 # 自然言語の判断手順だけに専念する。jq クエリの重複と「自然言語ながら定型」
@@ -35,23 +35,42 @@ owner_repo_n() {
 
 cmd_init() {
   local n login owner repo last_push
-  n=$(gh pr view --json number --jq .number)
+  # gh pr view の呼び出しを 1 回に集約 (number + commits[-1].committedDate)
+  # TODO: LAST_PUSH_TS は commits[-1].committedDate を使用しており、実 push 時刻と乖離する場合がある。
+  # gh API には PR commit ごとの pushedDate が無く、push 時刻の正確な取得には timeline events 走査が必要で複雑。
+  # 現状は許容範囲として committedDate を採用。
+  read -r n last_push <<< "$(gh pr view --json number,commits --jq '"\(.number) \(.commits[-1].committedDate)"')"
   login=$(gh api user --jq .login)
   read -r owner repo <<< "$(gh repo view --json owner,name --jq '"\(.owner.login) \(.name)"')"
-  last_push=$(gh pr view "$n" --json commits --jq '.commits[-1].committedDate')
   printf 'export OWNER=%q REPO=%q N=%q MY_LOGIN=%q LAST_PUSH_TS=%q\n' "$owner" "$repo" "$n" "$login" "$last_push"
 }
 
-cmd_unresolved_threads() {
+# reviewThreads を cursor-based pagination で全件取得し、各 thread を JSON 行として出力
+_fetch_all_review_threads() {
   owner_repo_n
-  gh api graphql -f query="query { repository(owner: \"$OWNER\", name: \"$REPO\") { pullRequest(number: $N) { reviewThreads(first: 50) { nodes { id isResolved path line comments(first: 5) { nodes { author { login } databaseId createdAt body } } } } } } }" \
-    --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)'
+  local cursor="null" has_next="true" json cursor_arg
+  while [ "$has_next" = "true" ]; do
+    if [ "$cursor" = "null" ]; then
+      cursor_arg="null"
+    else
+      cursor_arg="\"$cursor\""
+    fi
+    json=$(gh api graphql -f query="query { repository(owner: \"$OWNER\", name: \"$REPO\") { pullRequest(number: $N) { reviewThreads(first: 100, after: $cursor_arg) { pageInfo { hasNextPage endCursor } nodes { id isResolved path line comments(first: 10) { nodes { databaseId author { login } body createdAt } } } } } } }")
+    echo "$json" | jq -c '.data.repository.pullRequest.reviewThreads.nodes[]'
+    has_next=$(echo "$json" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')
+    cursor=$(echo "$json" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')
+  done
+}
+
+cmd_unresolved_threads() {
+  _fetch_all_review_threads | jq -c 'select(.isResolved == false)'
 }
 
 cmd_outside_diff_reviews() {
   owner_repo_n
+  # 表記揺れ対応: "outside (the) diff range" / "outside the diff" / "outside-diff" 等を広く拾う
   gh api "repos/$OWNER/$REPO/pulls/$N/reviews" --paginate \
-    --jq '.[] | select(.body != null and (.body | test("(?i)outside (?:the )?diff range"))) | {id: .id, user: .user.login, submitted: .submitted_at, body: .body}'
+    --jq '.[] | select(.body != null and (.body | test("(?i)outside\\b.*diff"))) | {id: .id, user: (.user.login? // "ghost"), submitted: .submitted_at, body: .body}'
 }
 
 cmd_react() {
@@ -68,22 +87,28 @@ cmd_resolve() {
 
 cmd_walkthrough_id() {
   owner_repo_n
+  # 複数回投稿された walkthrough の中で最新 (updated_at が最大) を返す
   gh api "repos/$OWNER/$REPO/issues/$N/comments" --paginate \
-    --jq '.[] | select(.user.login == "coderabbitai[bot]") | select(.body | startswith("<!-- This is an auto-generated comment: summarize by coderabbit.ai -->")) | .id' | head -1
+    --jq '[.[] | select(.user.login == "coderabbitai[bot]") | select(.body | startswith("<!-- This is an auto-generated comment: summarize by coderabbit.ai -->"))] | sort_by(.updated_at) | last | .id // empty'
 }
 
 cmd_walkthrough_state() {
   owner_repo_n
-  local wid
-  wid=$(cmd_walkthrough_id)
-  [ -z "$wid" ] && {
+  local wid rc=0
+  wid=$(cmd_walkthrough_id) || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "updated_at=none state=lookup_failed"
+    return
+  fi
+  if [ -z "$wid" ]; then
     echo "updated_at=none state=no_walkthrough"
     return
-  }
+  fi
   gh api "repos/$OWNER/$REPO/issues/comments/$wid" --jq '
     .updated_at as $u
-    | .body as $b
+    | (.body // "") as $b
     | (if ($b | contains("review in progress by coderabbit.ai")) then "in_progress"
+       elif ($b | contains("rate limited by coderabbit.ai")) then "rate_limited"
        elif ($b | contains("Actionable comments posted: 0")) then "no_actionable"
        elif ($b | test("Actionable comments posted: [1-9]")) then "has_actionable"
        elif ($b | contains("No actionable comments were generated")) then "no_actionable"
@@ -95,33 +120,33 @@ cmd_walkthrough_history() {
   owner_repo_n
   local wid node_id
   wid=$(cmd_walkthrough_id)
-  [ -z "$wid" ] && {
+  if [ -z "$wid" ]; then
     echo "no walkthrough"
     return
-  }
+  fi
   node_id=$(gh api "repos/$OWNER/$REPO/issues/comments/$wid" --jq '.node_id')
   gh api graphql -f query="query { node(id: \"$node_id\") { ... on IssueComment { userContentEdits(first: 100) { nodes { editedAt diff } } } } }" \
     --jq '.data.node.userContentEdits.nodes[] | {
       editedAt,
-      in_progress: (.diff | contains("review in progress by coderabbit.ai")),
-      rate_limited_marker: (.diff | contains("rate limited by coderabbit.ai")),
-      has_actionable_phrase: (.diff | (contains("No actionable comments were generated") or test("Actionable comments posted: [0-9]+")))
+      in_progress: ((.diff // "") | contains("review in progress by coderabbit.ai")),
+      rate_limited_marker: ((.diff // "") | contains("rate limited by coderabbit.ai")),
+      has_actionable_phrase: ((.diff // "") | (contains("No actionable comments were generated") or test("Actionable comments posted: [0-9]+")))
     }'
 }
 
 cmd_coderabbit_trigger() {
   owner_repo_n
-  local cid ts
-  cid=$(gh api "repos/$OWNER/$REPO/issues/$N/comments" -f body="@coderabbit review" --jq '.id')
-  ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  echo "comment_id=$cid posted_at=$ts"
+  # POST レスポンスの created_at を posted_at として返す (ローカル時計に依存しない)
+  # 失敗時は jq に渡る前に exit code が非 0 になり (set -uo pipefail)、何も出力されない
+  gh api "repos/$OWNER/$REPO/issues/$N/comments" -f body="@coderabbit review" \
+    --jq '"comment_id=\(.id) posted_at=\(.created_at)"'
 }
 
 cmd_bot_reviews_since() {
   owner_repo_n
   local since="${1:?need timestamp ISO8601}"
   gh api "repos/$OWNER/$REPO/pulls/$N/reviews" --paginate \
-    --jq ".[] | select(.user.login | endswith(\"[bot]\")) | select(.submitted_at > \"$since\") | \"\(.user.login) submitted_at=\(.submitted_at) id=\(.id)\""
+    --jq ".[] | select(.user.login? // \"\" | endswith(\"[bot]\")) | select(.submitted_at > \"$since\") | \"\\(.user.login? // \"ghost\") submitted_at=\\(.submitted_at) id=\\(.id)\""
 }
 
 cmd_codex_reaction() {
@@ -132,12 +157,20 @@ cmd_codex_reaction() {
 
 cmd_completion_summary() {
   owner_repo_n
-  echo "--- unresolved threads ---"
-  cmd_unresolved_threads | jq -r 'select(.isResolved == false) | "\(.path):\(.line) cid=\(.comments.nodes[0].databaseId) author=\(.comments.nodes[0].author.login)"' || echo "(none)"
+  : "${MY_LOGIN:?MY_LOGIN not set; run 'review-resolve-status.sh init' first}"
+  echo "--- threads (resolved/unresolved + hasMyReply) ---"
+  local threads
+  threads=$(_fetch_all_review_threads | jq -r --arg me "$MY_LOGIN" '
+    "\(if .isResolved then "[resolved]  " else "[unresolved]" end) \(.path):\(.line) cid=\(.comments.nodes[0].databaseId? // "none") author=\(.comments.nodes[0].author.login? // "ghost") hasMyReply=\([.comments.nodes[].author.login?] | any(. == $me))"')
+  echo "${threads:-(none)}"
   echo "--- codex reactions ---"
-  cmd_codex_reaction || echo "(none)"
+  local reactions
+  reactions=$(cmd_codex_reaction)
+  echo "${reactions:-(none)}"
   echo "--- coderabbit walkthrough state ---"
-  cmd_walkthrough_state || echo "(none)"
+  local state
+  state=$(cmd_walkthrough_state)
+  echo "${state:-(none)}"
 }
 
 main() {
@@ -157,7 +190,7 @@ main() {
     codex-reaction) cmd_codex_reaction "$@" ;;
     completion-summary) cmd_completion_summary "$@" ;;
     "" | help | -h | --help)
-      sed -n '2,40p' "$0"
+      sed -n '5,30p' "$0"
       ;;
     *)
       echo "unknown subcommand: $sub" >&2
