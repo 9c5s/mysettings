@@ -148,10 +148,19 @@ cmd_walkthrough_state() {
   # 完了マーカーを最優先することで、body に残った過去の rate_limit 履歴を「完了済」が上書きする。
   # in_progress マーカー無しで rate_limit マーカーのみのケース (CodeRabbit がレビュー開始前に
   # rate_limit に到達) は rate_limited として正しく判定する。
-  local data updated_at body state
-  data=$(gh api "repos/$OWNER/$REPO/issues/comments/$wid" --jq '{updated_at, body: (.body // "")}')
-  updated_at=$(printf '%s' "$data" | jq -r '.updated_at')
-  body=$(printf '%s' "$data" | jq -r '.body')
+  local data updated_at body state api_rc=0
+  data=$(gh api "repos/$OWNER/$REPO/issues/comments/$wid" --jq '{updated_at, body: (.body // "")}') || api_rc=$?
+  if [ "$api_rc" -ne 0 ] || [ -z "$data" ]; then
+    # gh api / jq の失敗 (auth / rate-limit / 削除済みコメント / network) は空入力で続行せず lookup_failed
+    echo "updated_at=none state=lookup_failed"
+    return 1
+  fi
+  updated_at=$(printf '%s' "$data" | jq -r '.updated_at // empty')
+  body=$(printf '%s' "$data" | jq -r '.body // empty')
+  if [ -z "$updated_at" ]; then
+    echo "updated_at=none state=lookup_failed"
+    return 1
+  fi
   if printf '%s' "$body" | grep -q "Actionable comments posted: 0"; then
     state="no_actionable"
   elif printf '%s' "$body" | grep -qE "Actionable comments posted: [1-9]"; then
