@@ -25,7 +25,7 @@ alias rrs='bash "$HOME/.claude/commands/scripts/review-resolve-status.sh"'
 1. `rrs unresolved-threads` で未解決スレッドを取得し、各スレッドの最初の comment 本文を読む
 2. `rrs outside-diff-reviews` で「Outside diff range」を含む review 本文を取得。bot 表記揺れで漏れる場合は `gh api repos/$OWNER/$REPO/pulls/$N/reviews --paginate --jq '.[] | select(.body!="") | {id, user: .user.login, body}'` で全件目視併用
 3. 各指摘について「採用/不採用」と理由を決める。コード修正が必要なら先に実装する
-4. コード修正があれば `git add` → `git commit` → `git push` を実行する。通常モードはユーザーに push 確認、`--loop` モードは確認なしで即実行。push 後は commit hash を控え、`eval "$(bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" init)"` を再実行して `LAST_PUSH_TS` を新 head に更新する
+4. コード修正があれば `git add` → `git commit` → `git push` を実行する。通常モードはユーザーに push 確認、`--loop` モードは確認なしで即実行。push 後は commit hash を控え、`eval "$(rrs init)"` を再実行して `LAST_PUSH_TS` を新 head に更新する
 5. 各スレッドに対して: `rrs react <comment_id> +1` または `-1` でリアクション → `rrs resolve <thread_node_id>` で解決
 6. 不採用で理由が分かりにくい場合のみ補足返信。`gh api repos/$OWNER/$REPO/pulls/$N/comments -f body="不採用 (理由1行)" -F in_reply_to=<comment_id>` 。リアクションだけで意思は伝わるので基本不要
 7. diff 範囲外指摘への対応は commit にだけ残す。PR 上で issue comment やスレッド外コメントを作成しない
@@ -84,9 +84,12 @@ Fallback 終了 (どれか 1 つ満たせば停止):
 
 前提: `eval "$(... init)"` が **親 shell に対して** `export OWNER=... REPO=... N=... MY_LOGIN=... LAST_PUSH_TS=...` を済ませてあること。Monitor の child shell は親 env を継承するが、`OWNER=value` 形式のローカル変数は継承されないので必ず `export` 経由で渡す:
 
-```
+```bash
 # pipefail: rrs | jq の左側 (rrs) が失敗しても jq が 0 で抜けて poll-failed が出ないのを防ぐ
 set -o pipefail
+
+# 親 shell の alias は Monitor の child shell に継承されないので function として再定義する
+rrs() { bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" "$@"; }
 
 last="$LAST_PUSH_TS"
 walkthrough_last=""
@@ -115,11 +118,11 @@ while true; do
     --jq ".[] | select(.created_at > \"$last\") | select(.user.login != \"$MY_LOGIN\") | \"comment: \(.user.login) at \(.created_at) id=\(.id)\"" \
     || { echo "poll-failed: comments"; failed=1; }
   # rrs unresolved-threads は GraphQL pagination 済 (review-resolve-status.sh 側で cursor 追跡)
-  bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" unresolved-threads \
+  rrs unresolved-threads \
     | jq -r --arg last "$last" --arg me "$MY_LOGIN" \
       '.comments.nodes[] | select(.createdAt > $last) | select(.author.login != $me) | "thread: \(.author.login) at \(.createdAt) cid=\(.databaseId)"' \
     || { echo "poll-failed: threads"; failed=1; }
-  if walkthrough_now=$(bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" walkthrough-state); then
+  if walkthrough_now=$(rrs walkthrough-state); then
     if [ "$walkthrough_now" != "$walkthrough_last" ] && [ -n "$walkthrough_last" ]; then
       echo "walkthrough: $walkthrough_now"
     fi
@@ -131,7 +134,7 @@ while true; do
   fi
   # Codex の eyes/+1 リアクション変化を通知。Codex が新 review を出さず +1 だけ付けた
   # 「クリーン完了」も検知できるようにする
-  if codex_reaction_now=$(bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" codex-reaction); then
+  if codex_reaction_now=$(rrs codex-reaction); then
     codex_reaction_now=$(printf '%s' "$codex_reaction_now" | sort -u | tr '\n' '|')
     if [ "$codex_reaction_now" != "$codex_reaction_last" ] && [ -n "$codex_reaction_last" ]; then
       echo "codex-reaction: $codex_reaction_now"

@@ -155,13 +155,18 @@ cmd_walkthrough_state() {
 
 cmd_walkthrough_history() {
   owner_repo_n
-  local wid node_id
-  wid=$(cmd_walkthrough_id)
+  local wid node_id rc=0
+  wid=$(cmd_walkthrough_id) || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    # cmd_walkthrough_state と同じく lookup 失敗 (auth/rate-limit/network) は exit 1 で伝播する
+    echo "walkthrough-history: walkthrough lookup failed" >&2
+    return 1
+  fi
   if [ -z "$wid" ]; then
     echo "no walkthrough"
-    return
+    return 0
   fi
-  node_id=$(gh api "repos/$OWNER/$REPO/issues/comments/$wid" --jq '.node_id')
+  node_id=$(gh api "repos/$OWNER/$REPO/issues/comments/$wid" --jq '.node_id') || return 1
   gh api graphql -f query="query { node(id: \"$node_id\") { ... on IssueComment { userContentEdits(first: 100) { nodes { editedAt diff } } } } }" \
     --jq '.data.node.userContentEdits.nodes[] | {
       editedAt,
@@ -199,6 +204,8 @@ cmd_completion_summary() {
   # 各セクションで「0 件」と「API 失敗」を区別する。bash 関数の終了ステータスは
   # `$?` で取れるが、コマンド置換 + パイプ後は失敗を捕捉しづらいため、各 helper を
   # `if cmd; then` で実行して取得成否を分岐する。
+  # 完了確認用コマンドなので、どれか 1 セクションでも失敗したら最後に return 1
+  local failed=0
   echo "--- threads (resolved/unresolved + hasMyReply) ---"
   local threads
   if threads=$(_fetch_all_review_threads | jq -r --arg me "$MY_LOGIN" '
@@ -206,6 +213,7 @@ cmd_completion_summary() {
     echo "${threads:-(0件)}"
   else
     echo "(取得失敗)"
+    failed=1
   fi
   echo "--- codex reactions ---"
   local reactions
@@ -213,6 +221,7 @@ cmd_completion_summary() {
     echo "${reactions:-(0件)}"
   else
     echo "(取得失敗)"
+    failed=1
   fi
   echo "--- coderabbit walkthrough state ---"
   local state
@@ -220,7 +229,9 @@ cmd_completion_summary() {
     echo "${state:-(0件)}"
   else
     echo "(取得失敗)"
+    failed=1
   fi
+  return "$failed"
 }
 
 main() {
