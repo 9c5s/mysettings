@@ -19,6 +19,7 @@
 #   coderabbit-trigger         '@coderabbit review' を投稿し comment ID と posted_at を出す
 #   bot-reviews-since TS       TS 以降の bot review を列挙 (login/submitted/id)
 #   codex-reaction             Codex の PR-issue リアクションを列挙 (eyes/+1/-1)
+#   codex-cleared SINCE        Codex 観点クリア判定 (SINCE 以降の +1 リアクションまたは usage-limit comment があれば exit 0、無ければ exit 1)
 #   completion-summary         全 thread の resolved/hasMyReply + Codex リアクション + walkthrough 状態を出力
 #   monitor-loop               loop モードの監視ループ本体 (Monitor ツールから呼ぶ。30s 間隔で polling、各 event を stdout)
 #
@@ -205,6 +206,33 @@ cmd_codex_reaction() {
     --jq '.[] | select(.user.login == "chatgpt-codex-connector[bot]") | "\(.content) at \(.created_at)"'
 }
 
+cmd_codex_cleared() {
+  owner_repo_n
+  local since="${1:?need SINCE_TS (ISO8601, e.g. \$LAST_PUSH_TS)}"
+  # Codex 観点のクリア判定は 2 種類:
+  # 1. SINCE 以降に Codex が +1 リアクションを付けた = この push のレビュー完了・指摘なし
+  # 2. Codex が usage limit comment を投稿済み (SINCE 無関係 / 全期間で検索) = 課金上限到達で
+  #    これ以降の push でも Codex はレビューしない確定。一度発生したら以降のすべての loop で
+  #    Codex 観点を「待っても来ない」として永久に clear 扱いにする
+  # どちらかを満たせば exit 0、無ければ exit 1。stdout に判定理由を出す
+  local found
+  found=$(gh api --paginate "repos/$OWNER/$REPO/issues/$N/reactions" \
+    --jq ".[] | select(.user.login == \"chatgpt-codex-connector[bot]\") | select(.content == \"+1\") | select(.created_at > \"$since\") | .created_at" | head -1)
+  if [ -n "$found" ]; then
+    echo "cleared: +1 reaction at $found"
+    return 0
+  fi
+  # usage_limit comment は SINCE フィルタなしで全期間検索する (一度出たら永久 clear)
+  found=$(gh api --paginate "repos/$OWNER/$REPO/issues/$N/comments" \
+    --jq ".[] | select(.user.login == \"chatgpt-codex-connector[bot]\") | select(.body | test(\"reached your Codex usage limits\")) | .created_at" | head -1)
+  if [ -n "$found" ]; then
+    echo "cleared: usage_limit comment at $found (Codex は usage limit 到達後、以降の push でもレビューしない確定)"
+    return 0
+  fi
+  echo "not_cleared"
+  return 1
+}
+
 cmd_completion_summary() {
   owner_repo_n
   : "${MY_LOGIN:?MY_LOGIN not set; run 'review-resolve-status.sh init' first}"
@@ -341,6 +369,7 @@ main() {
     coderabbit-trigger) cmd_coderabbit_trigger "$@" ;;
     bot-reviews-since) cmd_bot_reviews_since "$@" ;;
     codex-reaction) cmd_codex_reaction "$@" ;;
+    codex-cleared) cmd_codex_cleared "$@" ;;
     completion-summary) cmd_completion_summary "$@" ;;
     monitor-loop) cmd_monitor_loop "$@" ;;
     "" | help | -h | --help)

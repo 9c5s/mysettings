@@ -77,7 +77,7 @@ rrs() { bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" "$@"; }
 
 通常終了 (全 bot がクリーンを報告) は以下を **全て** 満たす場合に成立:
 
-- Codex: `+1` リアクションが `LAST_PUSH_TS` より新しい (👀 が `+1` に切り替わっている)
+- Codex: `rrs codex-cleared "$LAST_PUSH_TS"` が exit 0 を返す (= `LAST_PUSH_TS` より新しい `+1` リアクション、または **`reached your Codex usage limits` を含む issue comment** のどちらかが存在する)。usage limit comment は Codex が課金上限に達してそれ以上レビューしない明示シグナルなので、Codex 観点としては「待っても来ない」確定で `+1` と同じく観点クリアとして扱う
 - CodeRabbit: walkthrough `state=no_actionable` + `updated_at > LAST_PUSH_TS` + `rrs outside-diff-reviews "$LAST_PUSH_TS"` が空
 
 片方の bot だけクリーン報告した時点で停止すると、もう片方の後続 findings (例: Codex 👍 後に CodeRabbit が actionable thread 投稿) を取りこぼすため OR ではなく AND で判定する。
