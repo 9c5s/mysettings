@@ -20,6 +20,7 @@
 #   bot-reviews-since TS       TS 以降の bot review を列挙 (login/submitted/id)
 #   codex-reaction             Codex の PR-issue リアクションを列挙 (eyes/+1/-1)
 #   completion-summary         全 thread の resolved/hasMyReply + Codex リアクション + walkthrough 状態を出力
+#   monitor-loop               loop モードの監視ループ本体 (Monitor ツールから呼ぶ。30s 間隔で polling、各 event を stdout)
 #
 # 設計: review-resolve.md の検知ロジックを全てここに集約し、skill 本体は
 # 自然言語の判断手順だけに専念する。jq クエリの重複と「自然言語ながら定型」
@@ -234,6 +235,88 @@ cmd_completion_summary() {
   return "$failed"
 }
 
+cmd_monitor_loop() {
+  owner_repo_n
+  : "${MY_LOGIN:?MY_LOGIN not set; run 'review-resolve-status.sh init' first}"
+  : "${LAST_PUSH_TS:?LAST_PUSH_TS not set; run 'review-resolve-status.sh init' first}"
+  # pipefail: 内部 pipe (rrs | jq) の左側失敗を握り潰さない
+  set -o pipefail
+
+  local last="$LAST_PUSH_TS"
+  local walkthrough_last=""
+  local codex_reaction_last=""
+
+  # BSD (date -r EPOCH) と GNU (date -d @EPOCH) の両対応で 1 秒戻した ISO8601 を返す
+  _date_minus_1s() {
+    local epoch=$(($(date +%s) - 1))
+    date -u -r "$epoch" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null \
+      || date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ
+  }
+
+  while true; do
+    # 次回 last の候補を polling 開始前に確定する。polling 中に created された event は
+    # 今回の last より新しく next_watermark より古くなり、次回 iteration で必ず拾える
+    local next_watermark
+    next_watermark=$(_date_minus_1s)
+    local failed=0
+
+    # 失敗時は stdout に "poll-failed: ..." を出して通知化する。失敗を黙殺すると
+    # 15 分タイムアウト判定で「無音」と区別できず誤って終了するため
+    gh api --paginate "repos/$OWNER/$REPO/pulls/$N/reviews" \
+      --jq ".[] | select(.submitted_at > \"$last\") | select(.user.login != \"$MY_LOGIN\") | \"review: \(.user.login) at \(.submitted_at) id=\(.id)\"" \
+      || {
+        echo "poll-failed: reviews"
+        failed=1
+      }
+    gh api --paginate "repos/$OWNER/$REPO/issues/$N/comments" \
+      --jq ".[] | select(.created_at > \"$last\") | select(.user.login != \"$MY_LOGIN\") | \"comment: \(.user.login) at \(.created_at) id=\(.id)\"" \
+      || {
+        echo "poll-failed: comments"
+        failed=1
+      }
+    cmd_unresolved_threads \
+      | jq -r --arg last "$last" --arg me "$MY_LOGIN" \
+        '.comments.nodes[] | select(.createdAt > $last) | select(.author.login != $me) | "thread: \(.author.login) at \(.createdAt) cid=\(.databaseId)"' \
+      || {
+        echo "poll-failed: threads"
+        failed=1
+      }
+
+    local walkthrough_now
+    if walkthrough_now=$(cmd_walkthrough_state); then
+      if [ "$walkthrough_now" != "$walkthrough_last" ] && [ -n "$walkthrough_last" ]; then
+        echo "walkthrough: $walkthrough_now"
+      fi
+      walkthrough_last="$walkthrough_now"
+    else
+      # cmd_walkthrough_state は lookup_failed のとき exit 1 を返す。no_walkthrough は exit 0
+      echo "poll-failed: walkthrough-state"
+      failed=1
+    fi
+
+    # Codex の eyes/+1 リアクション変化を通知。Codex が新 review を出さず +1 だけ付けた
+    # 「クリーン完了」も検知できるようにする
+    local codex_reaction_now
+    if codex_reaction_now=$(cmd_codex_reaction); then
+      codex_reaction_now=$(printf '%s' "$codex_reaction_now" | sort -u | tr '\n' '|')
+      if [ "$codex_reaction_now" != "$codex_reaction_last" ] && [ -n "$codex_reaction_last" ]; then
+        echo "codex-reaction: $codex_reaction_now"
+      fi
+      codex_reaction_last="$codex_reaction_now"
+    else
+      echo "poll-failed: codex-reaction"
+      failed=1
+    fi
+
+    # polling が 1 つでも失敗していたら watermark を進めない (失敗中に created された event を
+    # 次回でも拾える状態に保つ)。全 polling 成功時のみ watermark を更新する
+    if [ "$failed" -eq 0 ]; then
+      last="$next_watermark"
+    fi
+    sleep 30
+  done
+}
+
 main() {
   local sub="${1:-}"
   shift || true
@@ -250,6 +333,7 @@ main() {
     bot-reviews-since) cmd_bot_reviews_since "$@" ;;
     codex-reaction) cmd_codex_reaction "$@" ;;
     completion-summary) cmd_completion_summary "$@" ;;
+    monitor-loop) cmd_monitor_loop "$@" ;;
     "" | help | -h | --help)
       sed -n '5,30p' "$0"
       ;;

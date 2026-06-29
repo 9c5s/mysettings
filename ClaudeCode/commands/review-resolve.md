@@ -80,79 +80,29 @@ Fallback 終了 (どれか 1 つ満たせば停止):
 
 ### 監視 Monitor (起動 1 回・persistent)
 
-`Monitor` ツールに以下を `persistent: true`, `timeout_ms: 3600000` で渡す。終了時 `TaskStop`。walkthrough は edit なので別途 updated_at を tail する。
+`Monitor` ツールに以下を `persistent: true`, `timeout_ms: 3600000` で渡す。終了時 `TaskStop`。
 
-前提: `eval "$(... init)"` が **親 shell に対して** `export OWNER=... REPO=... N=... MY_LOGIN=... LAST_PUSH_TS=...` を済ませてあること。Monitor の child shell は親 env を継承するが、`OWNER=value` 形式のローカル変数は継承されないので必ず `export` 経由で渡す:
+前提: `eval "$(... init)"` で親 shell に対して `export OWNER=... REPO=... N=... MY_LOGIN=... LAST_PUSH_TS=...` を済ませてあること。Monitor の child shell は親 env を継承するが `OWNER=value` 形式のローカル変数は継承されないので必ず `export` 経由で渡す。
 
 ```bash
-# pipefail: rrs | jq の左側 (rrs) が失敗しても jq が 0 で抜けて poll-failed が出ないのを防ぐ
-set -o pipefail
-
-# 親 shell の alias は Monitor の child shell に継承されないので function として再定義する
-rrs() { bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" "$@"; }
-
-last="$LAST_PUSH_TS"
-walkthrough_last=""
-codex_reaction_last=""
-
-# BSD (date -r EPOCH) と GNU (date -d @EPOCH) の両対応で 1 秒戻した ISO8601 を返す
-date_minus_1s() {
-  local epoch=$(($(date +%s) - 1))
-  date -u -r "$epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
-    || date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ
-}
-
-while true; do
-  # 次回 last の候補を polling 開始前 (= polling 完了より過去) に確定する。
-  # polling 中に created された event は今回の last より新しく next_watermark より古くなり、
-  # 今回のクエリで漏れた場合でも次回 iteration で必ず拾える。
-  next_watermark=$(date_minus_1s)
-  failed=0
-
-  # 失敗時は stdout に "poll-failed: ..." を出して通知化する。失敗を黙殺すると
-  # 15 分タイムアウト判定で「無音」と区別できず誤って終了するため。
-  gh api --paginate "repos/$OWNER/$REPO/pulls/$N/reviews" \
-    --jq ".[] | select(.submitted_at > \"$last\") | select(.user.login != \"$MY_LOGIN\") | \"review: \(.user.login) at \(.submitted_at) id=\(.id)\"" \
-    || { echo "poll-failed: reviews"; failed=1; }
-  gh api --paginate "repos/$OWNER/$REPO/issues/$N/comments" \
-    --jq ".[] | select(.created_at > \"$last\") | select(.user.login != \"$MY_LOGIN\") | \"comment: \(.user.login) at \(.created_at) id=\(.id)\"" \
-    || { echo "poll-failed: comments"; failed=1; }
-  # rrs unresolved-threads は GraphQL pagination 済 (review-resolve-status.sh 側で cursor 追跡)
-  rrs unresolved-threads \
-    | jq -r --arg last "$last" --arg me "$MY_LOGIN" \
-      '.comments.nodes[] | select(.createdAt > $last) | select(.author.login != $me) | "thread: \(.author.login) at \(.createdAt) cid=\(.databaseId)"' \
-    || { echo "poll-failed: threads"; failed=1; }
-  if walkthrough_now=$(rrs walkthrough-state); then
-    if [ "$walkthrough_now" != "$walkthrough_last" ] && [ -n "$walkthrough_last" ]; then
-      echo "walkthrough: $walkthrough_now"
-    fi
-    walkthrough_last="$walkthrough_now"
-  else
-    # cmd_walkthrough_state は lookup_failed のとき exit 1 を返す。no_walkthrough は exit 0
-    echo "poll-failed: walkthrough-state"
-    failed=1
-  fi
-  # Codex の eyes/+1 リアクション変化を通知。Codex が新 review を出さず +1 だけ付けた
-  # 「クリーン完了」も検知できるようにする
-  if codex_reaction_now=$(rrs codex-reaction); then
-    codex_reaction_now=$(printf '%s' "$codex_reaction_now" | sort -u | tr '\n' '|')
-    if [ "$codex_reaction_now" != "$codex_reaction_last" ] && [ -n "$codex_reaction_last" ]; then
-      echo "codex-reaction: $codex_reaction_now"
-    fi
-    codex_reaction_last="$codex_reaction_now"
-  else
-    echo "poll-failed: codex-reaction"
-    failed=1
-  fi
-
-  # polling が 1 つでも失敗していたら watermark を進めない (失敗中に created された event を
-  # 次回でも拾える状態に保つ)。全 polling 成功時のみ watermark を更新する
-  if [ "$failed" -eq 0 ]; then
-    last="$next_watermark"
-  fi
-  sleep 30
-done
+bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" monitor-loop
 ```
+
+`rrs monitor-loop` の実体は `review-resolve-status.sh` 内の `cmd_monitor_loop` で、以下を 30 秒間隔で polling し各 event を 1 行ずつ stdout に出す:
+
+- `review: <author> at <iso> id=<id>` — bot review 新着
+- `comment: <author> at <iso> id=<id>` — issue comment 新着
+- `thread: <author> at <iso> cid=<cid>` — 未解決 thread の bot 返信新着
+- `walkthrough: updated_at=<iso> state=<state>` — CodeRabbit walkthrough state 変化
+- `codex-reaction: <eyes\|+1>|...` — Codex の `/issues/N/reactions` 変化
+- `poll-failed: <kind>` — 上記いずれかの取得失敗
+
+実装上の保証 (詳細は `cmd_monitor_loop` 内コメント参照):
+
+- `set -o pipefail` で `rrs | jq` の左側失敗を握り潰さない
+- watermark (次の `last`) は polling 開始前に `_date_minus_1s` で先取り → polling 完了後に進める (polling 中に created された event は次回で拾える)
+- 1 件でも `poll-failed` が出たら watermark を進めない (失敗中の event を取りこぼさない)
+- `date -d @EPOCH` (GNU) と `date -r EPOCH` (BSD) の両対応
 
 ### ループ手順
 
