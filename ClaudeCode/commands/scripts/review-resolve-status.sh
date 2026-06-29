@@ -67,7 +67,14 @@ _fetch_all_review_threads() {
     else
       cursor_arg="\"$cursor\""
     fi
-    json=$(gh api graphql -f query="query { repository(owner: \"$OWNER\", name: \"$REPO\") { pullRequest(number: $N) { reviewThreads(first: 100, after: $cursor_arg) { pageInfo { hasNextPage endCursor } nodes { id isResolved path line comments(first: 10) { nodes { databaseId author { login } body createdAt } } } } } } }")
+    if ! json=$(gh api graphql -f query="query { repository(owner: \"$OWNER\", name: \"$REPO\") { pullRequest(number: $N) { reviewThreads(first: 100, after: $cursor_arg) { pageInfo { hasNextPage endCursor } nodes { id isResolved path line comments(first: 10) { nodes { databaseId author { login } body createdAt } } } } } } }"); then
+      echo "_fetch_all_review_threads: gh api graphql failed (auth/rate-limit/network)" >&2
+      return 1
+    fi
+    if ! echo "$json" | jq -e '.data.repository.pullRequest.reviewThreads' > /dev/null 2>&1; then
+      echo "_fetch_all_review_threads: GraphQL response missing reviewThreads (PR が見つからない or 権限なし)" >&2
+      return 1
+    fi
     echo "$json" | jq -c '.data.repository.pullRequest.reviewThreads.nodes[]'
     has_next=$(echo "$json" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')
     cursor=$(echo "$json" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')
@@ -99,9 +106,11 @@ cmd_resolve() {
 
 cmd_walkthrough_id() {
   owner_repo_n
-  # 複数回投稿された walkthrough の中で最新 (updated_at が最大) を返す
-  gh api "repos/$OWNER/$REPO/issues/$N/comments" --paginate \
-    --jq '[.[] | select(.user.login == "coderabbitai[bot]") | select(.body | startswith("<!-- This is an auto-generated comment: summarize by coderabbit.ai -->"))] | sort_by(.updated_at) | last | .id // empty'
+  # 複数回投稿された walkthrough の中で最新 (updated_at が最大) を返す。
+  # --paginate 単体ではページごとに jq が走り、ページ毎の last しか取れないため、
+  # --slurp で全ページを 1 配列に集めてから sort_by | last を適用する。
+  gh api --paginate --slurp "repos/$OWNER/$REPO/issues/$N/comments" \
+    --jq 'add | [.[] | select(.user.login == "coderabbitai[bot]") | select(.body | startswith("<!-- This is an auto-generated comment: summarize by coderabbit.ai -->"))] | sort_by(.updated_at) | last | .id // empty'
 }
 
 cmd_walkthrough_state() {
@@ -116,11 +125,15 @@ cmd_walkthrough_state() {
     echo "updated_at=none state=no_walkthrough"
     return
   fi
+  # rate-limit マーカーは body に履歴として残るため単純な存在チェックだと過去レビューの rate-limit でも true になる。
+  # rate-limit 状態は必ず in_progress と共起する (review in progress + rate limit warning) ので、
+  # in_progress 分岐の中でのみ rate_limited を判定する。Actionable comments posted があれば
+  # 既にレビュー完了済みのため過去 rate-limit 履歴は無視する。
   gh api "repos/$OWNER/$REPO/issues/comments/$wid" --jq '
     .updated_at as $u
     | (.body // "") as $b
-    | (if ($b | contains("review in progress by coderabbit.ai")) then "in_progress"
-       elif ($b | contains("rate limited by coderabbit.ai")) then "rate_limited"
+    | (if ($b | contains("review in progress by coderabbit.ai")) then
+        (if ($b | contains("rate limited by coderabbit.ai")) then "rate_limited" else "in_progress" end)
        elif ($b | contains("Actionable comments posted: 0")) then "no_actionable"
        elif ($b | test("Actionable comments posted: [1-9]")) then "has_actionable"
        elif ($b | contains("No actionable comments were generated")) then "no_actionable"
@@ -163,7 +176,8 @@ cmd_bot_reviews_since() {
 
 cmd_codex_reaction() {
   owner_repo_n
-  gh api "repos/$OWNER/$REPO/issues/$N/reactions" \
+  # 30 件超のリアクションがある PR で codex の eyes/+1 が後続ページに行くケースに対応するため --paginate
+  gh api --paginate "repos/$OWNER/$REPO/issues/$N/reactions" \
     --jq '.[] | select(.user.login == "chatgpt-codex-connector[bot]") | "\(.content) at \(.created_at)"'
 }
 
