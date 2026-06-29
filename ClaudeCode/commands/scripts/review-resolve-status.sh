@@ -88,16 +88,21 @@ cmd_unresolved_threads() {
 
 cmd_outside_diff_reviews() {
   owner_repo_n
-  # 表記揺れ対応: "outside (the) diff range" / "outside the diff" / "outside-diff" 等を広く拾う
+  # body-only findings の検出パターン (CodeRabbit などが inline でなく body に置く指摘):
+  # - "Outside (the) diff range" / "outside the diff" / "outside-diff"
+  # - "Nitpick comments (N)" — CodeRabbit の nitpick section
+  # - "Additional comments (N)" — 補助 comments
+  # 表記揺れ吸収のため case-insensitive で OR マッチする。
   # optional 第 1 引数 SINCE_TS (ISO8601) が指定されたらその時刻以降の review に絞る。
-  # loop モードで `$LAST_PUSH_TS` 以降の outside-diff を判定するのに使う。
+  # loop モードで `$LAST_PUSH_TS` 以降の body-only findings を判定するのに使う。
   local since="${1:-}"
+  local pattern='(?i)(outside\\b.*diff|nitpick comments?|additional comments?)'
   if [ -n "$since" ]; then
     gh api "repos/$OWNER/$REPO/pulls/$N/reviews" --paginate \
-      --jq ".[] | select(.body != null and (.body | test(\"(?i)outside\\\\b.*diff\"))) | select(.submitted_at > \"$since\") | {id: .id, user: (.user.login? // \"ghost\"), submitted: .submitted_at, body: .body}"
+      --jq ".[] | select(.body != null and (.body | test(\"$pattern\"))) | select(.submitted_at > \"$since\") | {id: .id, user: (.user.login? // \"ghost\"), submitted: .submitted_at, body: .body}"
   else
     gh api "repos/$OWNER/$REPO/pulls/$N/reviews" --paginate \
-      --jq '.[] | select(.body != null and (.body | test("(?i)outside\\b.*diff"))) | {id: .id, user: (.user.login? // "ghost"), submitted: .submitted_at, body: .body}'
+      --jq ".[] | select(.body != null and (.body | test(\"$pattern\"))) | {id: .id, user: (.user.login? // \"ghost\"), submitted: .submitted_at, body: .body}"
   fi
 }
 
@@ -284,7 +289,8 @@ cmd_monitor_loop() {
 
     local walkthrough_now
     if walkthrough_now=$(cmd_walkthrough_state); then
-      if [ "$walkthrough_now" != "$walkthrough_last" ] && [ -n "$walkthrough_last" ]; then
+      # 初回 polling (walkthrough_last="") でも有意な値が取れたら通知する。空 → 空の no-op は通知しない
+      if [ -n "$walkthrough_now" ] && [ "$walkthrough_now" != "$walkthrough_last" ]; then
         echo "walkthrough: $walkthrough_now"
       fi
       walkthrough_last="$walkthrough_now"
@@ -299,7 +305,9 @@ cmd_monitor_loop() {
     local codex_reaction_now
     if codex_reaction_now=$(cmd_codex_reaction); then
       codex_reaction_now=$(printf '%s' "$codex_reaction_now" | sort -u | tr '\n' '|')
-      if [ "$codex_reaction_now" != "$codex_reaction_last" ] && [ -n "$codex_reaction_last" ]; then
+      # 初回 polling (codex_reaction_last="") で「Codex は既に eyes/+1 を付けている」状態を
+      # 取りこぼさないため、現在値が非空なら必ず通知。空 → 空は no-op で通知しない
+      if [ -n "$codex_reaction_now" ] && [ "$codex_reaction_now" != "$codex_reaction_last" ]; then
         echo "codex-reaction: $codex_reaction_now"
       fi
       codex_reaction_last="$codex_reaction_now"
