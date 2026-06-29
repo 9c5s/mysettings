@@ -118,12 +118,15 @@ cmd_walkthrough_state() {
   local wid rc=0
   wid=$(cmd_walkthrough_id) || rc=$?
   if [ "$rc" -ne 0 ]; then
+    # 真の lookup 失敗 (auth/rate-limit/network) は exit code 1 で呼び出し元に伝播する。
+    # echo を return より前に行うと echo の exit code 0 を継承するため、return 1 を明示する
     echo "updated_at=none state=lookup_failed"
-    return
+    return 1
   fi
   if [ -z "$wid" ]; then
+    # walkthrough コメントが存在しない (PR 作成直後 / CodeRabbit 未起動) のは正常な状態
     echo "updated_at=none state=no_walkthrough"
-    return
+    return 0
   fi
   # rate-limit マーカーは body に履歴として残るため単純な存在チェックだと過去レビューの rate-limit でも true になる。
   # rate-limit 状態は必ず in_progress と共起する (review in progress + rate limit warning) ので、
