@@ -178,13 +178,20 @@ cmd_walkthrough_state() {
   else
     state="unknown"
   fi
-  # rate_limited のときは body から「More reviews will be available in N minutes (and M seconds)」を抽出して
-  # walkthrough の updated_at に加算した reset 予定時刻 (ISO8601 UTC) を出力に付与する。
-  # 呼び出し元はこれを使って「reset まで待つ → 再判定」を判断できる。
+  # rate_limited のときは body から残り時間を抽出して walkthrough の updated_at に加算した
+  # reset 予定時刻 (ISO8601 UTC) を出力に付与する。呼び出し元はこれを使って「reset まで待つ →
+  # 再判定」を判断できる。CodeRabbit の rate-limit 文言は複数あるため両方サポート:
+  # - adaptive 制限: "More reviews will be available in N minutes (and M seconds)"
+  # - plan 制限:    "Next review available in: N minutes" (markdown bold で `**N minutes**`)
   local extra=""
   if [ "$state" = "rate_limited" ]; then
     local mins secs total updated_epoch reset_epoch reset_at
     mins=$(printf '%s' "$body" | grep -oE 'More reviews will be available in [0-9]+ minutes?' | grep -oE '[0-9]+' | head -1)
+    if [ -z "$mins" ]; then
+      # markdown bold (`**Next review available in:** **N minutes**`) を許容するため
+      # `in:` と数字の間の `*` / space を `[^0-9]*` で許容する
+      mins=$(printf '%s' "$body" | grep -oE '[Nn]ext review available in:[^0-9]*[0-9]+ minutes?' | grep -oE '[0-9]+' | head -1)
+    fi
     secs=$(printf '%s' "$body" | grep -oE 'and [0-9]+ seconds?' | grep -oE '[0-9]+' | head -1)
     if [ -n "$mins" ]; then
       total=$((mins * 60 + ${secs:-0}))
@@ -229,6 +236,47 @@ cmd_coderabbit_trigger() {
   # bot handle は `@coderabbitai` (公式ドキュメント表記、bot login も `coderabbitai[bot]` に合致)
   gh api "repos/$OWNER/$REPO/issues/$N/comments" -f body="@coderabbitai review" \
     --jq '"comment_id=\(.id) posted_at=\(.created_at)"'
+}
+
+cmd_wait_and_retrigger() {
+  # walkthrough が rate_limited なら、body から抽出した reset 予定時刻まで待ってから
+  # `@coderabbitai review` を自動投稿する。バックグラウンド (Bash run_in_background) で
+  # 起動して放置できる設計。すでに rate_limited でなければ何もせず exit 0。
+  #
+  # 使い方:
+  #   bash review-resolve-status.sh wait-and-retrigger [BUFFER_SECONDS]
+  # BUFFER_SECONDS: reset_at に上乗せする待ち秒数 (default 60、reset 直後の race を回避)
+  owner_repo_n
+  local buffer="${1:-60}"
+  local state_out reset_at now_epoch reset_epoch wait_seconds state
+  state_out=$(cmd_walkthrough_state) || return 1
+  state=$(printf '%s' "$state_out" | grep -oE 'state=[a-z_]+' | cut -d= -f2)
+  if [ "$state" != "rate_limited" ]; then
+    echo "walkthrough state=$state (not rate_limited); no retrigger needed" >&2
+    return 0
+  fi
+  reset_at=$(printf '%s' "$state_out" | grep -oE 'rate_limit_reset_at=[^ ]+' | cut -d= -f2)
+  if [ -z "$reset_at" ]; then
+    echo "walkthrough rate_limited but reset_at unavailable; aborting" >&2
+    return 1
+  fi
+  now_epoch=$(date -u +%s)
+  reset_epoch=$(date -u -d "$reset_at" +%s 2> /dev/null \
+    || date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$reset_at" +%s 2> /dev/null \
+    || echo "")
+  if [ -z "$reset_epoch" ]; then
+    echo "could not parse reset_at=$reset_at; aborting" >&2
+    return 1
+  fi
+  wait_seconds=$((reset_epoch + buffer - now_epoch))
+  if [ "$wait_seconds" -gt 0 ]; then
+    echo "waiting ${wait_seconds}s until reset_at=$reset_at (+ ${buffer}s buffer)..." >&2
+    sleep "$wait_seconds"
+  else
+    echo "reset_at=$reset_at already past; triggering immediately" >&2
+  fi
+  echo "posting @coderabbitai review..." >&2
+  cmd_coderabbit_trigger
 }
 
 cmd_bot_reviews_since() {
@@ -418,6 +466,7 @@ main() {
     walkthrough-state) cmd_walkthrough_state "$@" ;;
     walkthrough-history) cmd_walkthrough_history "$@" ;;
     coderabbit-trigger) cmd_coderabbit_trigger "$@" ;;
+    wait-and-retrigger) cmd_wait_and_retrigger "$@" ;;
     bot-reviews-since) cmd_bot_reviews_since "$@" ;;
     codex-reaction) cmd_codex_reaction "$@" ;;
     codex-cleared) cmd_codex_cleared "$@" ;;

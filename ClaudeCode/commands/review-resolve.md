@@ -124,6 +124,7 @@ bash "$HOME/.claude/commands/scripts/review-resolve-status.sh" monitor-loop
    - d. `rrs react <cid> +1|-1` + `rrs resolve <node_id>`
    - e. `rrs codex-reaction` で 👍 なら Codex 観点はクリア (即終了はせず CodeRabbit の終了条件 (f) と AND で判定)、👀 なら Codex は in_progress として待機継続
    - f. `rrs walkthrough-state` が `no_actionable` で `updated_at > LAST_PUSH_TS` **かつ** `rrs outside-diff-reviews "$LAST_PUSH_TS"` も空なら CodeRabbit 観点で終了確定。`no_actionable` は inline 指摘数 0 を意味するだけで、outside-diff/nitpick が body に残っているケースを取りこぼすため両方をチェックする。`outside-diff-reviews` には現 push 以降の cutoff を渡し、過去 push で既に対応済の outside-diff が残って永久に false にならないようにする
+   - g. walkthrough が `state=rate_limited` (= `rate_limit_reset_at=...` 付き) になったら、`Bash run_in_background` で `rrs wait-and-retrigger` を起動して放置する。reset 予定時刻 + 60s buffer 後に自動で `@coderabbitai review` を投稿し、Monitor がその新 review を捕捉する。手動で再 trigger を覚えておく必要なし
 4. 15 分新着もリアクション変化も walkthrough 更新も `poll-failed` も無ければ終了判定。Codex 👀 が残っていれば +5〜10 分延長。`poll-failed: ...` が連続して出ている間は API 不調なので終了判定の無音タイマーをリセットする
 5. 終了確定で `TaskStop` → ユーザーに完了報告
 
@@ -153,6 +154,7 @@ walkthrough の編集履歴を直接見たい場合は `rrs walkthrough-history`
 ## 補足コマンド
 
 - `rrs coderabbit-trigger` : `@coderabbit review` 投稿+時刻記録 (1 行で済む)
+- `rrs wait-and-retrigger [BUFFER_SECONDS]` : CodeRabbit walkthrough が rate_limited のとき、body から抽出した reset 予定時刻まで待ってから `@coderabbitai review` を自動投稿する。reset_at + BUFFER_SECONDS (default 60) 後に発火。rate_limited 以外のときは何もせず exit 0。--loop モードで rate_limit に遭遇したら `Bash run_in_background` で本コマンドを起動して放置するのが標準フロー (起動済 Monitor が再 review を捕捉する)。
 - `rrs bot-reviews-since <ts>` : 指定時刻以降の bot review 一覧
 - `rrs completion-summary` : 未解決スレッド数 + Codex リアクション + walkthrough 状態を 1 ブロックで出力 (最終確認用)
 
