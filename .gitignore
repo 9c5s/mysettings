@@ -1,13 +1,15 @@
 __pycache__/
-.coverage
 .claude/
 .clj-kondo/
+.coverage
 .DS_Store
+.env
 .lsp/
+.playwright-mcp/
 .serena/
 .tmp/
 .venv/
 desktop.ini
-superpowers/
 node_modules/
+superpowers/
 Thumbs.db
