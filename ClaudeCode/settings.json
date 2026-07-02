@@ -8,23 +8,43 @@
 		"DISABLE_ERROR_REPORTING": "1"
 	},
 	"includeCoAuthoredBy": false,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
 	"permissions": {
 		"allow": [],
 		"deny": [
-			"Bash(*brew install *)",
 			"Bash(*chmod 777 *)",
 			"Bash(*gh pr merge*)",
 			"Bash(*gh merge*)",
 			"Bash(*gh repo delete*)",
 			"Bash(*git config *)",
 			"Bash(*git add -f*)",
+      "Bash(*git add .)",
+      "Bash(*git add . *)",
+      "Bash(*git add ./)",
+      "Bash(*git add ./ *)",
+      "Bash(*git add -A*)",
+      "Bash(*git add --all*)",
+      "Bash(*git add -u*)",
+      "Bash(*git add --update*)",
+      "Bash(*git add :/*)",
 			"Bash(*rm -rf *)",
-			"PowerShell(*brew install *)",
 			"PowerShell(*gh pr merge*)",
 			"PowerShell(*gh merge*)",
 			"PowerShell(*gh repo delete*)",
 			"PowerShell(*git config *)",
 			"PowerShell(*git add -f*)",
+      "PowerShell(*git add .)",
+      "PowerShell(*git add . *)",
+      "PowerShell(*git add ./)",
+      "PowerShell(*git add ./ *)",
+      "PowerShell(*git add -A*)",
+      "PowerShell(*git add --all*)",
+      "PowerShell(*git add -u*)",
+      "PowerShell(*git add --update*)",
+      "PowerShell(*git add :/*)",
 			"PowerShell(*rm -rf *)",
 			"PowerShell(*Remove-Item*-Recurse*)",
 			"PowerShell(*Remove-Item*-Force*)"
@@ -63,11 +83,14 @@
 		"chrome-devtools-mcp@claude-plugins-official": true,
 		"clangd-lsp@claude-plugins-official": false,
 		"claude-md-management@claude-plugins-official": true,
+    "cloudflare@cloudflare": true,
 		"code-review@claude-plugins-official": true,
 		"code-simplifier@claude-plugins-official": true,
 		"coderabbit@claude-plugins-official": true,
+    "codex@openai-codex": true,
 		"context7@claude-plugins-official": true,
 		"csharp-lsp@claude-plugins-official": false,
+    "discord@claude-plugins-official": true,
 		"feature-dev@claude-plugins-official": true,
 		"frontend-design@claude-plugins-official": true,
 		"gopls-lsp@claude-plugins-official": false,
@@ -86,33 +109,40 @@
 		"security-guidance@claude-plugins-official": true,
 		"skill-creator@claude-plugins-official": true,
 		"superpowers@claude-plugins-official": true,
+    "svelte@svelte": true,
 		"swift-lsp@claude-plugins-official": false,
-		"typescript-lsp@claude-plugins-official": false,
-		"codex@openai-codex": true,
-		"svelte@svelte": true,
-		"discord@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": false
 	},
 	"extraKnownMarketplaces": {
 		"openai-codex": {
 			"source": {
 				"source": "github",
 				"repo": "openai/codex-plugin-cc"
-			}
+      },
+      "autoUpdate": true
 		},
 		"svelte": {
 			"source": {
 				"source": "github",
 				"repo": "sveltejs/ai-tools"
-			}
+      },
+      "autoUpdate": true
+    },
+    "cloudflare": {
+      "source": {
+        "source": "github",
+        "repo": "cloudflare/skills"
+      },
+      "autoUpdate": true
 		}
 	},
 	"language": "日本語",
 	"autoUpdatesChannel": "latest",
 	"skipDangerousModePermissionPrompt": true,
 	"preferredNotifChannel": "notifications_disabled",
+  "remoteControlAtStartup": true,
+  "inputNeededNotifEnabled": true,
 	"agentPushNotifEnabled": true,
-	"inputNeededNotifEnabled": true,
-	"remoteControlAtStartup": true,
 	"feedbackSurveyState": {
 		"lastShownTime": 1754086803253
 	}
