@@ -13,3 +13,8 @@ desktop.ini
 node_modules/
 superpowers/
 Thumbs.db
+
+# cc-discord plugin symlinks (kept locally, tracked in cc-discord repo)
+ClaudeCode/hooks/watch-launch.ts
+ClaudeCode/hooks/watch-stop.ts
+ClaudeCode/scripts/statusline-tee.ts

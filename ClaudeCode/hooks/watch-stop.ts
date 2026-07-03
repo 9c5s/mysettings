@@ -1,1 +1,0 @@
-D:/projects/cc-discord/plugin/src/watch-stop.ts
