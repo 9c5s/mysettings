@@ -2,7 +2,10 @@ $env:PATH = "$env:PATH$([System.IO.Path]::PathSeparator)$env:LOCALAPPDATA\Micros
 
 # コマンドエイリアス
 function ll { eza -lahF --time-style "+%y/%m/%d %H:%M" @args }
-function claude { & "~/.local/bin/claude.exe" --dangerously-skip-permissions --effort max --channels plugin:discord@claude-plugins-official @args }
+function claude { & "~/.local/bin/claude.exe" --dangerously-skip-permissions --channels plugin:cc-discord@cc-discord @args }
+
+# cc-discord の footer に公式 discord の未取り込みの版を表示する
+$env:CC_DISCORD_UPSTREAM_CHECK = '1'
 
 # oh-my-posh設定
 oh-my-posh init pwsh --config 'https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/emodipt-extend.omp.json' | Invoke-Expression
